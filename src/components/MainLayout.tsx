@@ -12,7 +12,7 @@ export function MainLayout({ documentProxy }: MainLayoutProps) {
   useKeyboardShortcuts();
 
   return (
-    <main className="mt-5 grid flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
+    <main className="mt-5 grid min-h-0 flex-1 overflow-hidden gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
       <PageSidebar documentProxy={documentProxy} />
       <Workspace documentProxy={documentProxy} />
       <PropertiesPanel />

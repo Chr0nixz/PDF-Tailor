@@ -27,7 +27,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   });
 
   return (
-    <aside className="panel-surface flex min-h-[520px] flex-col p-4">
+    <aside className="panel-surface flex min-h-0 min-h-[520px] flex-col overflow-hidden p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-[0.22em] text-ink/55">Pages</div>
@@ -43,7 +43,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
         </div>
       ) : null}
       {documentLoadState !== "loading" ? (
-        <div ref={parentRef} className="flex-1 overflow-auto pr-1">
+        <div ref={parentRef} className="min-h-0 flex-1 overflow-auto pr-1">
           <div
             className="relative"
             style={{ height: `${rowVirtualizer.getTotalSize()}px` }}

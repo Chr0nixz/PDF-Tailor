@@ -50,7 +50,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
   });
 
   return (
-    <section className="panel-surface flex min-h-[520px] flex-col overflow-hidden p-4">
+    <section className="panel-surface flex min-h-0 min-h-[520px] flex-col overflow-hidden p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-[0.22em] text-ink/55">Workspace</div>
@@ -60,8 +60,8 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
           Zoom {Math.round(zoom * 100)}%
         </div>
       </div>
-      <div className="flex flex-1 items-center justify-center rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.8)_0%,_rgba(230,238,245,0.8)_100%)] p-6">
-        <div className="relative flex min-h-[460px] w-full items-center justify-center overflow-auto rounded-[24px] bg-[#dbe3ea] p-8">
+      <div className="flex flex-1 items-stretch justify-center rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.8)_0%,_rgba(230,238,245,0.8)_100%)] p-6">
+        <div className="relative flex min-h-[460px] w-full items-start justify-center overflow-auto rounded-[24px] bg-[#dbe3ea] p-8">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(91,141,239,0.12),_transparent_32%),radial-gradient(circle_at_bottom,_rgba(184,92,56,0.08),_transparent_24%)]" />
           {documentLoadState === "loading" ? (
             <div className="relative rounded-[18px] bg-white/75 px-6 py-4 text-center text-sm text-ink/70">

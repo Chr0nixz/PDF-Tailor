@@ -194,7 +194,7 @@ export function PropertiesPanel() {
   };
 
   return (
-    <aside className="panel-surface flex min-h-[520px] flex-col p-4">
+    <aside className="panel-surface flex min-h-0 min-h-[520px] flex-col overflow-auto p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-[0.22em] text-ink/55">Properties</div>
