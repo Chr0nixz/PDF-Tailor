@@ -13,7 +13,7 @@ export function MainLayout({ documentProxy }: MainLayoutProps) {
 
   return (
     <main className="mt-5 grid flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
-      <PageSidebar />
+      <PageSidebar documentProxy={documentProxy} />
       <Workspace documentProxy={documentProxy} />
       <PropertiesPanel />
     </main>

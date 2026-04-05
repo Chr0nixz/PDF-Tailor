@@ -44,12 +44,14 @@ export function PropertiesPanel() {
   const setDisplayUnit = usePdfStore((state) => state.setDisplayUnit);
   const documentLoadState = usePdfStore((state) => state.documentLoadState);
   const pages = usePdfStore((state) => state.pages);
+  const selectedPageIndices = usePdfStore((state) => state.selectedPageIndices);
   const pageCrops = usePdfStore((state) => state.pageCrops);
   const draftCropRect = usePdfStore((state) => state.draftCropRect);
   const activeDragState = usePdfStore((state) => state.activeDragState);
   const setCropMode = usePdfStore((state) => state.setCropMode);
   const setPageCropRect = usePdfStore((state) => state.setPageCropRect);
   const pushHistoryCheckpoint = usePdfStore((state) => state.pushHistoryCheckpoint);
+  const applyCropToPages = usePdfStore((state) => state.applyCropToPages);
 
   const currentCrop = selectCurrentPageCrop(
     currentPageIndex,
@@ -69,6 +71,7 @@ export function PropertiesPanel() {
   const presetSizeId = currentCrop?.presetSizeId ?? "a4";
   const presetAnchor = currentCrop?.presetAnchor ?? "center";
   const cropRect = currentCrop?.cropRect ?? null;
+  const selectedTargets = selectedPageIndices.length > 0 ? selectedPageIndices : [currentPageIndex];
   const marginSessionRef = useRef(false);
   const [marginValues, setMarginValues] = useState(() =>
     createInputValues(margins, displayUnit),
@@ -265,17 +268,19 @@ export function PropertiesPanel() {
       <div className="mt-auto grid gap-3 pt-4">
         <button
           type="button"
-          disabled
-          className="rounded-full bg-pine/50 px-4 py-3 text-sm font-medium text-white"
+          disabled={!cropRect || selectedTargets.length === 0}
+          onClick={() => applyCropToPages(currentPageIndex, selectedTargets)}
+          className="rounded-full bg-pine px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-pine/90 disabled:bg-pine/50"
         >
-          Apply to selected pages
+          Apply to selected pages ({selectedTargets.length})
         </button>
         <button
           type="button"
-          disabled
-          className="rounded-full border border-ink/12 bg-white/70 px-4 py-3 text-sm font-medium text-ink/50"
+          disabled={!cropRect || pages.length === 0}
+          onClick={() => applyCropToPages(currentPageIndex, pages.map((pageItem) => pageItem.pageIndex))}
+          className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
         >
-          Apply to all pages
+          Apply to all pages ({pages.length})
         </button>
       </div>
     </aside>

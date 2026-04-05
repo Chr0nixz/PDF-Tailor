@@ -90,6 +90,7 @@ interface PdfStoreState {
   updateDraftCrop: (draftCropRect: CropRect | null, guides?: SnapGuide[]) => void;
   endCropInteraction: (commit: boolean) => void;
   clearCropInteraction: () => void;
+  applyCropToPages: (sourcePageIndex: number, targetPageIndices: number[]) => void;
   pushHistoryCheckpoint: () => void;
   commitHistory: () => void;
   undo: () => void;
@@ -336,6 +337,45 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       },
       draftCropRect: null,
       activeSnapGuides: [],
+    }),
+  applyCropToPages: (sourcePageIndex, targetPageIndices) =>
+    set((state) => {
+      const source = state.pageCrops[sourcePageIndex];
+
+      if (!source?.cropRect || targetPageIndices.length === 0) {
+        return state;
+      }
+
+      const nextPageCrops = { ...state.pageCrops };
+
+      for (const pageIndex of targetPageIndices) {
+        const page = state.pages.find((item) => item.pageIndex === pageIndex);
+
+        if (!page) {
+          continue;
+        }
+
+        const nextCropRect: CropRect = {
+          ...source.cropRect,
+          pageIndex,
+        };
+
+        nextPageCrops[pageIndex] = {
+          ...(state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex)),
+          cropRect: nextCropRect,
+          mode: source.mode,
+          presetSizeId: source.presetSizeId,
+          presetAnchor: source.presetAnchor,
+          marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
+          updatedAt: Date.now(),
+        };
+      }
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
     }),
   pushHistoryCheckpoint: () =>
     set((state) => ({
