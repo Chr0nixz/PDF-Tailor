@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+.vite-temp/
+*.tsbuildinfo
+
+.DS_Store
+Thumbs.db
+
+.claude/
