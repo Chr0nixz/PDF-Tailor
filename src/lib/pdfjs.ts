@@ -1,4 +1,3 @@
-import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import type {
   OnProgressParameters,
   PDFDocumentLoadingTask,
@@ -7,12 +6,25 @@ import type {
   RenderTask,
 } from "pdfjs-dist";
 
-GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
-  import.meta.url,
-).toString();
+type PdfJsModule = typeof import("pdfjs-dist");
 
-export { getDocument };
+let pdfJsPromise: Promise<PdfJsModule> | null = null;
+
+export function loadPdfJs() {
+  if (!pdfJsPromise) {
+    pdfJsPromise = import("pdfjs-dist").then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.mjs",
+        import.meta.url,
+      ).toString();
+
+      return pdfjs;
+    });
+  }
+
+  return pdfJsPromise;
+}
+
 export type {
   OnProgressParameters,
   PDFDocumentLoadingTask,

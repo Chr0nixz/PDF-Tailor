@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  getDocument,
+  loadPdfJs,
   type OnProgressParameters,
   type PDFDocumentLoadingTask,
   type PDFDocumentProxy,
@@ -88,9 +88,15 @@ export function usePdfRenderer() {
       setDocumentLoadState("loading", 0);
 
       try {
+        const pdfjs = await loadPdfJs();
+
+        if (cancelled) {
+          return;
+        }
+
         // pdf.js may transfer typed-array ownership to the worker, so clone it
         // before loading and keep the original bytes in the store for export.
-        const loadingTask = getDocument({ data: fileBuffer.slice() });
+        const loadingTask = pdfjs.getDocument({ data: fileBuffer.slice() });
         loadingTaskRef.current = loadingTask;
         loadingTask.onProgress = (progress: OnProgressParameters) => {
           if (!cancelled) {
