@@ -1,34 +1,96 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { usePdfStore } from "@/store/usePdfStore";
-
-function createMockPdfBuffer() {
-  return new Uint8Array([37, 80, 68, 70]);
-}
+import { isPdfFile, readFileAsUint8Array } from "@/utils/fileIO";
 
 export function DropZone() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const setDocument = usePdfStore((state) => state.setDocument);
-  const clearDocument = usePdfStore((state) => state.clearDocument);
+  const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
+
   const hintLines = useMemo(
     () => [
-      "阶段 1 已完成骨架搭建，阶段 2 会接入真实 PDF 解析与渲染。",
-      "当前按钮会注入一个占位文档状态，用于验证布局、store 与后续流程接口。",
+      "Drag a PDF file here or open one from disk.",
+      "Phase 2 loads the document with pdf.js and renders the current page to canvas.",
     ],
     [],
   );
 
+  const loadFile = async (file: File) => {
+    if (!isPdfFile(file)) {
+      setErrorMessage("Please choose a PDF file.");
+      return;
+    }
+
+    try {
+      const fileBuffer = await readFileAsUint8Array(file);
+      setDocument({
+        file,
+        fileBuffer,
+        fileName: file.name,
+      });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to read the selected file.",
+      );
+    }
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    await loadFile(file);
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+
+    const file = event.dataTransfer.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    await loadFile(file);
+  };
+
   return (
-    <section className="panel-surface relative mt-5 flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-10 md:px-10">
+    <section
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        if (event.currentTarget === event.target) {
+          setIsDragging(false);
+        }
+      }}
+      onDrop={handleDrop}
+      className={`panel-surface relative mt-5 flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-10 md:px-10 ${
+        isDragging ? "border-sky bg-mist/80" : ""
+      }`}
+    >
       <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_center,_rgba(184,92,56,0.14),_transparent_70%)]" />
       <div className="relative z-10 flex max-w-3xl flex-col items-center text-center">
         <div className="mb-6 rounded-full border border-ink/10 bg-white/70 px-4 py-1 text-xs font-medium uppercase tracking-[0.24em] text-ink/60">
-          Phase 1 Scaffold
+          Load PDF
         </div>
         <h1 className="max-w-2xl text-4xl font-semibold leading-tight md:text-6xl">
-          PDF 裁剪工作台的基础工程已经就位
+          Open a PDF and start the render pipeline
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-7 text-ink/70 md:text-lg">
-          当前版本先完成 Vite、TypeScript、Tailwind、Zustand、Worker
-          和三栏布局框架，供后续 PDF 加载、框选裁剪与导出功能直接接入。
+          This phase wires up local file selection, pdf.js document parsing,
+          page metadata extraction, canvas rendering, zoom control, and cleanup.
         </p>
         <div className="mt-8 grid w-full gap-4 md:grid-cols-2">
           {hintLines.map((line) => (
@@ -41,34 +103,23 @@ export function DropZone() {
           ))}
         </div>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={handleFileChange}
+            className="hidden"
+          />
           <button
             type="button"
-            onClick={() =>
-              setDocument({
-                file: new File([""], "phase-1-placeholder.pdf", {
-                  type: "application/pdf",
-                }),
-                fileName: "phase-1-placeholder.pdf",
-                fileBuffer: createMockPdfBuffer(),
-                pages: [
-                  { pageIndex: 0, widthPt: 595, heightPt: 842, rotation: 0 },
-                  { pageIndex: 1, widthPt: 595, heightPt: 842, rotation: 0 },
-                  { pageIndex: 2, widthPt: 612, heightPt: 792, rotation: 0 },
-                ],
-                pageCount: 3,
-              })
-            }
+            onClick={() => fileInputRef.current?.click()}
             className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition hover:bg-ink/90"
           >
-            进入骨架预览
+            Choose PDF
           </button>
-          <button
-            type="button"
-            onClick={clearDocument}
-            className="rounded-full border border-ink/15 bg-white px-6 py-3 text-sm font-medium text-ink transition hover:border-ink/30"
-          >
-            重置状态
-          </button>
+          <div className="rounded-full border border-ink/15 bg-white px-6 py-3 text-sm font-medium text-ink">
+            or drop a file anywhere in this panel
+          </div>
         </div>
       </div>
     </section>

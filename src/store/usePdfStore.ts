@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   CropMode,
   CropRect,
+  DocumentLoadState,
   PageCropState,
   PageMetadata,
   PdfUnit,
@@ -27,6 +28,8 @@ interface PdfStoreState {
   currentPageIndex: number;
   selectedPageIndices: number[];
   zoom: number;
+  documentLoadState: DocumentLoadState;
+  documentLoadProgress: number | null;
   displayUnit: PdfUnit;
   pageCrops: Record<number, PageCropState>;
   activeDragState: DragState;
@@ -47,6 +50,10 @@ interface PdfStoreState {
   setCurrentPage: (pageIndex: number) => void;
   toggleSelectedPage: (pageIndex: number, multiSelect?: boolean) => void;
   setZoom: (zoom: number) => void;
+  setDocumentLoadState: (
+    state: DocumentLoadState,
+    progress?: number | null,
+  ) => void;
   setDisplayUnit: (unit: PdfUnit) => void;
   upsertPageCrop: (
     pageIndex: number,
@@ -94,6 +101,8 @@ const initialState = {
   currentPageIndex: 0,
   selectedPageIndices: [],
   zoom: 1,
+  documentLoadState: "idle" as DocumentLoadState,
+  documentLoadProgress: null as number | null,
   displayUnit: "mm" as PdfUnit,
   pageCrops: {},
   activeDragState: {
@@ -118,7 +127,9 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       pageCount,
       pages,
       currentPageIndex: 0,
-      selectedPageIndices: pageCount > 0 ? [0] : [],
+      selectedPageIndices: [],
+      documentLoadState: pageCount > 0 ? "ready" : "loading",
+      documentLoadProgress: null,
       pageCrops: {},
       past: [],
       future: [],
@@ -130,6 +141,8 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       pages,
       pageCount: pages.length,
       selectedPageIndices: pages.length > 0 ? [0] : [],
+      documentLoadState: pages.length > 0 ? "ready" : "idle",
+      documentLoadProgress: null,
     }),
   setCurrentPage: (pageIndex) => set({ currentPageIndex: pageIndex }),
   toggleSelectedPage: (pageIndex, multiSelect = false) =>
@@ -153,6 +166,8 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       };
     }),
   setZoom: (zoom) => set({ zoom }),
+  setDocumentLoadState: (documentLoadState, documentLoadProgress = null) =>
+    set({ documentLoadState, documentLoadProgress }),
   setDisplayUnit: (displayUnit) => set({ displayUnit }),
   upsertPageCrop: (pageIndex, patch, options) =>
     set((state) => {

@@ -4,6 +4,8 @@ export type CropMode = "free" | "preset";
 
 export type ExportMode = "crop-box" | "redraw";
 
+export type DocumentLoadState = "idle" | "loading" | "ready" | "error";
+
 export type PresetAnchor =
   | "top-left"
   | "top-center"

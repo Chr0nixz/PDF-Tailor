@@ -20,6 +20,7 @@ export function PropertiesPanel() {
   const currentPageIndex = usePdfStore((state) => state.currentPageIndex);
   const displayUnit = usePdfStore((state) => state.displayUnit);
   const setDisplayUnit = usePdfStore((state) => state.setDisplayUnit);
+  const documentLoadState = usePdfStore((state) => state.documentLoadState);
   const pageCrops = usePdfStore((state) => state.pageCrops);
   const currentCrop = selectCurrentPageCrop(currentPageIndex, pageCrops);
   const margins = selectCurrentMargins(currentPageIndex, pageCrops);
@@ -29,7 +30,7 @@ export function PropertiesPanel() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-[0.22em] text-ink/55">Properties</div>
-          <div className="mt-1 text-lg font-semibold">属性面板骨架</div>
+          <div className="mt-1 text-lg font-semibold">Crop controls preview</div>
         </div>
         <button
           type="button"
@@ -40,6 +41,10 @@ export function PropertiesPanel() {
         </button>
       </div>
       <div className="space-y-3">
+        <PropertyBlock
+          title="Document state"
+          value={documentLoadState === "ready" ? "Ready for crop tools" : documentLoadState}
+        />
         <PropertyBlock
           title="Crop Mode"
           value={currentCrop?.mode === "preset" ? "Preset Size" : "Free Selection"}
@@ -56,21 +61,24 @@ export function PropertiesPanel() {
         <PropertyBlock title="Left Margin" value={`${margins.left.toFixed(2)} ${displayUnit}`} />
       </div>
       <div className="mt-4 rounded-[24px] border border-dashed border-ink/12 bg-panel px-4 py-4 text-sm leading-6 text-ink/65">
-        阶段 1 先交付状态结构和布局占位。阶段 3 起这里会接入裁剪模式、预设尺寸、9
-        宫格定位和边距输入的真实交互。
+        Phase 2 stops at document loading and canvas rendering. Crop interaction,
+        preset sizes, live margin editing, and batch operations begin in the next
+        phases.
       </div>
       <div className="mt-auto grid gap-3 pt-4">
         <button
           type="button"
-          className="rounded-full bg-pine px-4 py-3 text-sm font-medium text-white transition hover:bg-pine/90"
+          disabled
+          className="rounded-full bg-pine/50 px-4 py-3 text-sm font-medium text-white"
         >
-          应用到选中页
+          Apply to selected pages
         </button>
         <button
           type="button"
-          className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition hover:border-ink/20"
+          disabled
+          className="rounded-full border border-ink/12 bg-white/70 px-4 py-3 text-sm font-medium text-ink/50"
         >
-          应用到全部页面
+          Apply to all pages
         </button>
       </div>
     </aside>
