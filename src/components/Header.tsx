@@ -26,9 +26,11 @@ export function Header() {
   const zoom = usePdfStore((state) => state.zoom);
   const pageCount = usePdfStore((state) => state.pageCount);
   const documentLoadState = usePdfStore((state) => state.documentLoadState);
+  const previewOpen = usePdfStore((state) => state.previewOpen);
   const exportInProgress = usePdfStore((state) => state.exportInProgress);
   const setZoom = usePdfStore((state) => state.setZoom);
   const setDocument = usePdfStore((state) => state.setDocument);
+  const setPreviewOpen = usePdfStore((state) => state.setPreviewOpen);
   const setExportDialogOpen = usePdfStore((state) => state.setExportDialogOpen);
   const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
   const clearDocument = usePdfStore((state) => state.clearDocument);
@@ -69,7 +71,7 @@ export function Header() {
       <div className="flex items-center gap-4">
         <div className="rounded-[20px] bg-ink px-4 py-3 text-white">
           <div className="text-xs uppercase tracking-[0.24em] text-white/60">PDF-Tailor</div>
-          <div className="mt-1 text-lg font-semibold">Phase 6</div>
+          <div className="mt-1 text-lg font-semibold">Phase 7</div>
         </div>
         <div>
           <div className="text-sm font-medium text-ink/55">Current document</div>
@@ -109,6 +111,14 @@ export function Header() {
             Close
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          disabled={!fileName || documentLoadState !== "ready" || previewOpen}
+          className="rounded-full border border-ink/10 bg-white/80 px-4 py-2 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Preview
+        </button>
         <button
           type="button"
           onClick={() => setExportDialogOpen(true)}

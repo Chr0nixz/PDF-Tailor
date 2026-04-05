@@ -2,6 +2,7 @@ import { Header } from "@/components/Header";
 import { MainLayout } from "@/components/MainLayout";
 import { DropZone } from "@/components/DropZone";
 import { ExportDialog } from "@/components/ExportDialog";
+import { PreviewModal } from "@/components/PreviewModal";
 import { usePdfRenderer } from "@/hooks/usePdfRenderer";
 import { usePdfStore } from "@/store/usePdfStore";
 
@@ -21,6 +22,7 @@ export default function App() {
         ) : null}
         {fileName ? <MainLayout documentProxy={documentProxy} /> : <DropZone />}
         <ExportDialog />
+        <PreviewModal />
       </div>
     </div>
   );

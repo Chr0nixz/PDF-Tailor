@@ -43,6 +43,21 @@ export function ExportDialog() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!exportDialogOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !exportInProgress) {
+        setExportDialogOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [exportDialogOpen, exportInProgress, setExportDialogOpen]);
+
   if (!exportDialogOpen) {
     return null;
   }
