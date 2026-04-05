@@ -66,6 +66,16 @@ interface PdfStoreState {
     patch: Partial<PageCropState>,
     options?: { commitHistory?: boolean },
   ) => void;
+  setPageCropRect: (
+    pageIndex: number,
+    cropRect: CropRect | null,
+    options?: {
+      commitHistory?: boolean;
+      mode?: CropMode;
+      presetSizeId?: string | null;
+      presetAnchor?: PresetAnchor | null;
+    },
+  ) => void;
   setCropMode: (pageIndex: number, mode: CropMode) => void;
   setPresetConfig: (
     pageIndex: number,
@@ -80,6 +90,7 @@ interface PdfStoreState {
   updateDraftCrop: (draftCropRect: CropRect | null, guides?: SnapGuide[]) => void;
   endCropInteraction: (commit: boolean) => void;
   clearCropInteraction: () => void;
+  pushHistoryCheckpoint: () => void;
   commitHistory: () => void;
   undo: () => void;
   redo: () => void;
@@ -214,6 +225,41 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         future: options?.commitHistory === false ? state.future : [],
       };
     }),
+  setPageCropRect: (pageIndex, cropRect, options) =>
+    set((state) => {
+      const current = state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex);
+      const page = state.pages.find((item) => item.pageIndex === pageIndex);
+      const nextPast =
+        options?.commitHistory === false
+          ? state.past
+          : [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT);
+
+      return {
+        pageCrops: {
+          ...state.pageCrops,
+          [pageIndex]: {
+            ...current,
+            cropRect,
+            marginsPt:
+              page && cropRect
+                ? cropRectToMargins(cropRect, page.widthPt, page.heightPt)
+                : current.marginsPt,
+            mode: options?.mode ?? current.mode,
+            presetSizeId:
+              options && "presetSizeId" in options
+                ? options.presetSizeId ?? undefined
+                : current.presetSizeId,
+            presetAnchor:
+              options && "presetAnchor" in options
+                ? options.presetAnchor ?? undefined
+                : current.presetAnchor,
+            updatedAt: Date.now(),
+          },
+        },
+        past: nextPast,
+        future: options?.commitHistory === false ? state.future : [],
+      };
+    }),
   setCropMode: (pageIndex, mode) =>
     get().upsertPageCrop(pageIndex, { mode }, { commitHistory: false }),
   setPresetConfig: (pageIndex, presetSizeId, presetAnchor) =>
@@ -271,6 +317,9 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
             ...current,
             cropRect: state.draftCropRect,
             marginsPt,
+            mode: "free",
+            presetSizeId: undefined,
+            presetAnchor: undefined,
             updatedAt: Date.now(),
           },
         },
@@ -288,6 +337,11 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       draftCropRect: null,
       activeSnapGuides: [],
     }),
+  pushHistoryCheckpoint: () =>
+    set((state) => ({
+      past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+      future: [],
+    })),
   commitHistory: () =>
     set((state) => ({
       past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),

@@ -1,4 +1,5 @@
-import type { CropRect, PageMargins, Rect } from "@/types";
+import type { CropRect, PageMargins, PresetAnchor, Rect } from "@/types";
+import { mmToPt } from "@/utils/unitConversion";
 
 export interface ViewportMetrics {
   scale: number;
@@ -134,4 +135,81 @@ export function cropRectToMargins(
     bottom: Math.max(0, rect.y),
     left: Math.max(0, rect.x),
   };
+}
+
+export function marginsToCropRect(
+  margins: PageMargins,
+  pageWidthPt: number,
+  pageHeightPt: number,
+  pageIndex: number,
+): CropRect {
+  const left = Math.max(0, margins.left);
+  const right = Math.max(0, margins.right);
+  const bottom = Math.max(0, margins.bottom);
+  const top = Math.max(0, margins.top);
+
+  return clampRectToPage(
+    {
+      pageIndex,
+      x: left,
+      y: bottom,
+      width: Math.max(12, pageWidthPt - left - right),
+      height: Math.max(12, pageHeightPt - top - bottom),
+    },
+    pageWidthPt,
+    pageHeightPt,
+  );
+}
+
+export function createPresetCropRect(
+  {
+    widthMm,
+    heightMm,
+  }: {
+    widthMm: number;
+    heightMm: number;
+  },
+  pageWidthPt: number,
+  pageHeightPt: number,
+  pageIndex: number,
+  anchor: PresetAnchor,
+): CropRect {
+  const width = Math.min(mmToPt(widthMm), pageWidthPt);
+  const height = Math.min(mmToPt(heightMm), pageHeightPt);
+
+  const xByAnchor: Record<PresetAnchor, number> = {
+    "top-left": 0,
+    "top-center": (pageWidthPt - width) / 2,
+    "top-right": pageWidthPt - width,
+    "center-left": 0,
+    center: (pageWidthPt - width) / 2,
+    "center-right": pageWidthPt - width,
+    "bottom-left": 0,
+    "bottom-center": (pageWidthPt - width) / 2,
+    "bottom-right": pageWidthPt - width,
+  };
+
+  const yByAnchor: Record<PresetAnchor, number> = {
+    "top-left": pageHeightPt - height,
+    "top-center": pageHeightPt - height,
+    "top-right": pageHeightPt - height,
+    "center-left": (pageHeightPt - height) / 2,
+    center: (pageHeightPt - height) / 2,
+    "center-right": (pageHeightPt - height) / 2,
+    "bottom-left": 0,
+    "bottom-center": 0,
+    "bottom-right": 0,
+  };
+
+  return clampRectToPage(
+    {
+      pageIndex,
+      x: xByAnchor[anchor],
+      y: yByAnchor[anchor],
+      width,
+      height,
+    },
+    pageWidthPt,
+    pageHeightPt,
+  );
 }
