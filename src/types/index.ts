@@ -6,6 +6,19 @@ export type ExportMode = "crop-box" | "redraw";
 
 export type DocumentLoadState = "idle" | "loading" | "ready" | "error";
 
+export type CropHandle =
+  | "move"
+  | "n"
+  | "s"
+  | "e"
+  | "w"
+  | "ne"
+  | "nw"
+  | "se"
+  | "sw";
+
+export type CropInteraction = "create" | "move" | "resize";
+
 export type PresetAnchor =
   | "top-left"
   | "top-center"
@@ -26,6 +39,11 @@ export interface Rect {
 
 export interface CropRect extends Rect {
   pageIndex: number;
+}
+
+export interface SnapGuide {
+  orientation: "horizontal" | "vertical";
+  position: number;
 }
 
 export interface PaperSize {

@@ -1,5 +1,8 @@
 import { create } from "zustand";
+import { cropRectToMargins } from "@/utils/coordinates";
 import type {
+  CropHandle,
+  CropInteraction,
   CropMode,
   CropRect,
   DocumentLoadState,
@@ -7,6 +10,7 @@ import type {
   PageMetadata,
   PdfUnit,
   PresetAnchor,
+  SnapGuide,
 } from "@/types";
 
 const HISTORY_LIMIT = 50;
@@ -15,8 +19,8 @@ type HistorySnapshot = Record<number, PageCropState>;
 
 interface DragState {
   pageIndex: number | null;
-  action: "create" | "move" | "resize" | null;
-  handle: string | null;
+  action: CropInteraction | null;
+  handle: CropHandle | null;
 }
 
 interface PdfStoreState {
@@ -33,6 +37,8 @@ interface PdfStoreState {
   displayUnit: PdfUnit;
   pageCrops: Record<number, PageCropState>;
   activeDragState: DragState;
+  draftCropRect: CropRect | null;
+  activeSnapGuides: SnapGuide[];
   previewOpen: boolean;
   exportDialogOpen: boolean;
   errorMessage: string | null;
@@ -66,7 +72,14 @@ interface PdfStoreState {
     presetSizeId: string,
     presetAnchor: PresetAnchor,
   ) => void;
-  setActiveDragState: (dragState: Partial<DragState>) => void;
+  beginCropInteraction: (
+    pageIndex: number,
+    action: CropInteraction,
+    handle: CropHandle | null,
+  ) => void;
+  updateDraftCrop: (draftCropRect: CropRect | null, guides?: SnapGuide[]) => void;
+  endCropInteraction: (commit: boolean) => void;
+  clearCropInteraction: () => void;
   commitHistory: () => void;
   undo: () => void;
   redo: () => void;
@@ -110,6 +123,8 @@ const initialState = {
     action: null,
     handle: null,
   },
+  draftCropRect: null as CropRect | null,
+  activeSnapGuides: [] as SnapGuide[],
   previewOpen: false,
   exportDialogOpen: false,
   errorMessage: null,
@@ -131,6 +146,8 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       documentLoadState: pageCount > 0 ? "ready" : "loading",
       documentLoadProgress: null,
       pageCrops: {},
+      draftCropRect: null,
+      activeSnapGuides: [],
       past: [],
       future: [],
       errorMessage: null,
@@ -205,13 +222,72 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       { presetSizeId, presetAnchor, mode: "preset" },
       { commitHistory: false },
     ),
-  setActiveDragState: (dragState) =>
+  beginCropInteraction: (pageIndex, action, handle) =>
     set((state) => ({
       activeDragState: {
-        ...state.activeDragState,
-        ...dragState,
+        pageIndex,
+        action,
+        handle,
       },
+      draftCropRect: state.pageCrops[pageIndex]?.cropRect ?? null,
+      activeSnapGuides: [],
     })),
+  updateDraftCrop: (draftCropRect, guides = []) =>
+    set((state) => ({
+      draftCropRect:
+        state.activeDragState.pageIndex === draftCropRect?.pageIndex || draftCropRect === null
+          ? draftCropRect
+          : state.draftCropRect,
+      activeSnapGuides: guides,
+    })),
+  endCropInteraction: (commit) =>
+    set((state) => {
+      const pageIndex = state.activeDragState.pageIndex;
+      const nextState = {
+        activeDragState: {
+          pageIndex: null,
+          action: null,
+          handle: null,
+        } satisfies DragState,
+        draftCropRect: null,
+        activeSnapGuides: [],
+      };
+
+      if (!commit || pageIndex === null || !state.draftCropRect) {
+        return nextState;
+      }
+
+      const page = state.pages.find((item) => item.pageIndex === pageIndex);
+      const current = state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex);
+      const marginsPt = page
+        ? cropRectToMargins(state.draftCropRect, page.widthPt, page.heightPt)
+        : current.marginsPt;
+
+      return {
+        ...nextState,
+        pageCrops: {
+          ...state.pageCrops,
+          [pageIndex]: {
+            ...current,
+            cropRect: state.draftCropRect,
+            marginsPt,
+            updatedAt: Date.now(),
+          },
+        },
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }),
+  clearCropInteraction: () =>
+    set({
+      activeDragState: {
+        pageIndex: null,
+        action: null,
+        handle: null,
+      },
+      draftCropRect: null,
+      activeSnapGuides: [],
+    }),
   commitHistory: () =>
     set((state) => ({
       past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
@@ -232,6 +308,8 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
           0,
           HISTORY_LIMIT,
         ),
+        draftCropRect: null,
+        activeSnapGuides: [],
       };
     }),
   redo: () =>
@@ -246,6 +324,8 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         pageCrops: next,
         future,
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        draftCropRect: null,
+        activeSnapGuides: [],
       };
     }),
   setPreviewOpen: (previewOpen) => set({ previewOpen }),

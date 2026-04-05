@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from "@/lib/pdfjs";
 
 interface PdfPageCanvasProps {
   documentProxy: PDFDocumentProxy;
   pageIndex: number;
   zoom: number;
+  children?: ReactNode;
 }
 
 interface CanvasSize {
@@ -16,6 +17,7 @@ export function PdfPageCanvas({
   documentProxy,
   pageIndex,
   zoom,
+  children,
 }: PdfPageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
@@ -119,6 +121,7 @@ export function PdfPageCanvas({
       }}
     >
       <canvas ref={canvasRef} className="block max-w-full" />
+      {children}
       {renderState === "loading" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-paper/80 text-sm font-medium text-ink/60">
           Rendering page...

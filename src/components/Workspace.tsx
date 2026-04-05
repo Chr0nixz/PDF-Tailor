@@ -1,5 +1,11 @@
+import { useMemo, useRef } from "react";
+import { CropOverlay } from "@/components/CropOverlay";
+import { CropRectangle } from "@/components/CropRectangle";
 import { PdfPageCanvas } from "@/components/PdfPageCanvas";
+import { useCropSelection } from "@/hooks/useCropSelection";
 import { usePdfStore } from "@/store/usePdfStore";
+import { selectCurrentPageCrop } from "@/store/selectors";
+import type { ViewportMetrics } from "@/utils/coordinates";
 import type { PDFDocumentProxy } from "@/lib/pdfjs";
 
 interface WorkspaceProps {
@@ -12,7 +18,36 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
   const zoom = usePdfStore((state) => state.zoom);
   const documentLoadState = usePdfStore((state) => state.documentLoadState);
   const documentLoadProgress = usePdfStore((state) => state.documentLoadProgress);
+  const pageCrops = usePdfStore((state) => state.pageCrops);
+  const draftCropRect = usePdfStore((state) => state.draftCropRect);
+  const activeDragState = usePdfStore((state) => state.activeDragState);
   const page = pages[currentPageIndex];
+  const viewport = useMemo<ViewportMetrics | null>(
+    () =>
+      page
+        ? {
+            scale: zoom,
+            pageWidthPt: page.widthPt,
+            pageHeightPt: page.heightPt,
+          }
+        : null,
+    [page, zoom],
+  );
+  const currentCrop = selectCurrentPageCrop(
+    currentPageIndex,
+    pageCrops,
+    draftCropRect,
+    activeDragState.pageIndex,
+  )?.cropRect;
+  const cropLayerRef = useRef<HTMLDivElement | null>(null);
+  const { cropRect, snapGuides, startCreate, startMove, startResize } = useCropSelection({
+    containerRef: cropLayerRef,
+    viewport,
+    pageIndex: currentPageIndex,
+    pageWidthPt: page?.widthPt ?? 0,
+    pageHeightPt: page?.heightPt ?? 0,
+    cropRect: currentCrop ?? null,
+  });
 
   return (
     <section className="panel-surface flex min-h-[520px] flex-col overflow-hidden p-4">
@@ -46,7 +81,20 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
                 documentProxy={documentProxy}
                 pageIndex={currentPageIndex}
                 zoom={zoom}
-              />
+              >
+                <div ref={cropLayerRef} className="absolute inset-0">
+                  <CropOverlay onPointerDown={startCreate} />
+                  {viewport && cropRect ? (
+                    <CropRectangle
+                      cropRect={cropRect}
+                      viewport={viewport}
+                      snapGuides={snapGuides}
+                      onMoveStart={startMove}
+                      onResizeStart={startResize}
+                    />
+                  ) : null}
+                </div>
+              </PdfPageCanvas>
               <div className="absolute right-5 top-5 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white">
                 Page {currentPageIndex + 1}
               </div>
