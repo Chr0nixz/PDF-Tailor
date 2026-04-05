@@ -41,6 +41,7 @@ interface PdfStoreState {
   activeSnapGuides: SnapGuide[];
   previewOpen: boolean;
   exportDialogOpen: boolean;
+  exportInProgress: boolean;
   errorMessage: string | null;
   past: HistorySnapshot[];
   future: HistorySnapshot[];
@@ -97,6 +98,7 @@ interface PdfStoreState {
   redo: () => void;
   setPreviewOpen: (open: boolean) => void;
   setExportDialogOpen: (open: boolean) => void;
+  setExportInProgress: (value: boolean) => void;
   setErrorMessage: (message: string | null) => void;
 }
 
@@ -139,6 +141,7 @@ const initialState = {
   activeSnapGuides: [] as SnapGuide[],
   previewOpen: false,
   exportDialogOpen: false,
+  exportInProgress: false,
   errorMessage: null,
   past: [] as HistorySnapshot[],
   future: [] as HistorySnapshot[],
@@ -162,6 +165,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       activeSnapGuides: [],
       past: [],
       future: [],
+      exportInProgress: false,
       errorMessage: null,
     }),
   clearDocument: () => set({ ...initialState }),
@@ -424,5 +428,6 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
     }),
   setPreviewOpen: (previewOpen) => set({ previewOpen }),
   setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
+  setExportInProgress: (exportInProgress) => set({ exportInProgress }),
   setErrorMessage: (errorMessage) => set({ errorMessage }),
 }));

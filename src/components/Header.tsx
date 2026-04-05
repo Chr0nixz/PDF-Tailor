@@ -26,8 +26,10 @@ export function Header() {
   const zoom = usePdfStore((state) => state.zoom);
   const pageCount = usePdfStore((state) => state.pageCount);
   const documentLoadState = usePdfStore((state) => state.documentLoadState);
+  const exportInProgress = usePdfStore((state) => state.exportInProgress);
   const setZoom = usePdfStore((state) => state.setZoom);
   const setDocument = usePdfStore((state) => state.setDocument);
+  const setExportDialogOpen = usePdfStore((state) => state.setExportDialogOpen);
   const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
   const clearDocument = usePdfStore((state) => state.clearDocument);
 
@@ -67,7 +69,7 @@ export function Header() {
       <div className="flex items-center gap-4">
         <div className="rounded-[20px] bg-ink px-4 py-3 text-white">
           <div className="text-xs uppercase tracking-[0.24em] text-white/60">PDF-Tailor</div>
-          <div className="mt-1 text-lg font-semibold">Phase 2</div>
+          <div className="mt-1 text-lg font-semibold">Phase 6</div>
         </div>
         <div>
           <div className="text-sm font-medium text-ink/55">Current document</div>
@@ -107,6 +109,14 @@ export function Header() {
             Close
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => setExportDialogOpen(true)}
+          disabled={!fileName || documentLoadState !== "ready" || exportInProgress}
+          className="rounded-full bg-ember px-4 py-2 text-sm font-medium text-white transition hover:bg-ember/90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {exportInProgress ? "Exporting..." : "Export"}
+        </button>
         <ZoomButton label="-" onClick={() => setZoom(Math.max(0.25, zoom - 0.1))} />
         <div className="min-w-16 rounded-full bg-white/80 px-3 py-1.5 text-center text-sm font-medium text-ink">
           {Math.round(zoom * 100)}%

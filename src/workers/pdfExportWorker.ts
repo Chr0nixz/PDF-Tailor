@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 
+import { exportPdf } from "@/utils/pdfOperations";
 import type { ExportWorkerRequest, ExportWorkerResponse } from "@/workers/workerTypes";
 
 const worker = self as DedicatedWorkerGlobalScope;
@@ -10,7 +11,7 @@ worker.onmessage = async (event: MessageEvent<ExportWorkerRequest>) => {
   }
 
   try {
-    const { fileBuffer } = event.data.payload;
+    const fileBuffer = await exportPdf(event.data.payload);
 
     const response: ExportWorkerResponse = {
       type: "EXPORT_SUCCESS",
