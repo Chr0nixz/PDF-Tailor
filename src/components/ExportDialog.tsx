@@ -8,6 +8,16 @@ function buildDownloadName(fileName: string | null, mode: ExportMode) {
   return `${baseName}-${mode}.pdf`;
 }
 
+function normalizeDownloadName(downloadName: string, fileName: string | null, mode: ExportMode) {
+  const trimmed = downloadName.trim();
+
+  if (!trimmed) {
+    return buildDownloadName(fileName, mode);
+  }
+
+  return trimmed.toLowerCase().endsWith(".pdf") ? trimmed : `${trimmed}.pdf`;
+}
+
 export function ExportDialog() {
   const fileName = usePdfStore((state) => state.fileName);
   const fileBuffer = usePdfStore((state) => state.fileBuffer);
@@ -21,6 +31,7 @@ export function ExportDialog() {
   const [exportMode, setExportMode] = useState<ExportMode>("crop-box");
   const [downloadName, setDownloadName] = useState(buildDownloadName(fileName, "crop-box"));
   const workerRef = useRef<Worker | null>(null);
+  const exportGenerationRef = useRef(0);
 
   const croppedPageCount = useMemo(
     () => Object.values(pageCrops).filter((pageCrop) => Boolean(pageCrop.cropRect)).length,
@@ -68,10 +79,24 @@ export function ExportDialog() {
       return;
     }
 
+    const nextDownloadName = normalizeDownloadName(downloadName, fileName, exportMode);
+    const hasInvalidCrop = Object.values(pageCrops).some((pageCrop) => {
+      const cropRect = pageCrop.cropRect;
+      return Boolean(cropRect) && (cropRect!.width <= 0 || cropRect!.height <= 0);
+    });
+
+    if (hasInvalidCrop) {
+      setErrorMessage("One or more crop rectangles are invalid. Adjust the crop and try again.");
+      return;
+    }
+
     setErrorMessage(null);
     setExportInProgress(true);
+    setDownloadName(nextDownloadName);
 
     workerRef.current?.terminate();
+    const generation = exportGenerationRef.current + 1;
+    exportGenerationRef.current = generation;
 
     const worker = new Worker(
       new URL("../workers/pdfExportWorker.ts", import.meta.url),
@@ -81,6 +106,11 @@ export function ExportDialog() {
     workerRef.current = worker;
 
     worker.onmessage = (event: MessageEvent<ExportWorkerResponse>) => {
+      if (event.data.generation !== generation) {
+        worker.terminate();
+        return;
+      }
+
       const response = event.data;
       setExportInProgress(false);
       worker.terminate();
@@ -99,7 +129,7 @@ export function ExportDialog() {
       const anchor = document.createElement("a");
 
       anchor.href = objectUrl;
-      anchor.download = downloadName.trim() || buildDownloadName(fileName, exportMode);
+      anchor.download = nextDownloadName;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -121,6 +151,7 @@ export function ExportDialog() {
         pageCrops,
         exportMode,
       },
+      generation,
     });
   };
 
