@@ -120,6 +120,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
       <div className="flex flex-1 items-stretch justify-center rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.8)_0%,_rgba(230,238,245,0.8)_100%)] p-6">
         <div
           ref={viewportFrameRef}
+          data-testid="workspace-viewport"
           className="relative flex min-h-[460px] w-full items-start justify-center overflow-auto rounded-[24px] bg-[#dbe3ea] p-8"
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(91,141,239,0.12),_transparent_32%),radial-gradient(circle_at_bottom,_rgba(184,92,56,0.08),_transparent_24%)]" />
@@ -142,7 +143,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
                 pageIndex={currentPageIndex}
                 zoom={zoom}
               >
-                <div ref={cropLayerRef} className="absolute inset-0">
+                <div ref={cropLayerRef} data-testid="crop-layer" className="absolute inset-0">
                   <CropOverlay onPointerDown={startCreate} />
                   {viewport && cropRect ? (
                     <CropRectangle

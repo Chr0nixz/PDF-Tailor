@@ -172,7 +172,10 @@ export function ExportDialog() {
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-ink/25 px-4 py-8 backdrop-blur-sm">
+    <div
+      data-testid="export-dialog"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-ink/25 px-4 py-8 backdrop-blur-sm"
+    >
       <div className="panel-surface w-full max-w-xl p-6">
         <div className="flex items-start justify-between gap-4">
           <div>

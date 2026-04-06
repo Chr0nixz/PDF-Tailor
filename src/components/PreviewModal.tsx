@@ -279,7 +279,10 @@ export function PreviewModal() {
   }
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-ink/30 px-4 py-8 backdrop-blur-sm">
+    <div
+      data-testid="preview-dialog"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-ink/30 px-4 py-8 backdrop-blur-sm"
+    >
       <div className="panel-surface flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

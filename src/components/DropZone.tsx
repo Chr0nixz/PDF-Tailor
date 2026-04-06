@@ -61,6 +61,7 @@ export function DropZone() {
 
   return (
     <section
+      data-testid="dropzone"
       onDragEnter={(event) => {
         event.preventDefault();
         setIsDragging(true);
@@ -105,6 +106,7 @@ export function DropZone() {
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <input
             ref={fileInputRef}
+            data-testid="pdf-file-input"
             type="file"
             accept="application/pdf,.pdf"
             onChange={handleFileChange}
@@ -112,6 +114,7 @@ export function DropZone() {
           />
           <button
             type="button"
+            data-testid="choose-pdf-button"
             onClick={() => fileInputRef.current?.click()}
             className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition hover:bg-ink/90"
           >

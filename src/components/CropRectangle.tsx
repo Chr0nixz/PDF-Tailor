@@ -61,6 +61,7 @@ export const CropRectangle = memo(function CropRectangle({
       })}
 
       <div
+        data-testid="crop-rectangle"
         onPointerDown={onMoveStart}
         className="pointer-events-auto absolute rounded-[18px] border-2 border-dashed border-ember bg-ember/10"
         style={{

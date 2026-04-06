@@ -135,6 +135,7 @@ export function PdfPageCanvas({
 
   return (
     <div
+      data-testid="pdf-page-stage"
       className="relative overflow-hidden rounded-[20px] border border-ink/10 bg-paper shadow-[0_24px_60px_rgba(24,34,48,0.12)]"
       style={{
         width: canvasSize.width ? `${canvasSize.width}px` : "320px",
