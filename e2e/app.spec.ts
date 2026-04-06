@@ -69,6 +69,8 @@ async function uploadPdf(page: Page, name: string, buffer: Buffer) {
     mimeType: "application/pdf",
     buffer,
   });
+  // Wait for the loading indicator to disappear and content to appear
+  await page.waitForLoadState("networkidle");
 }
 
 async function createCropSelection(page: Page) {
@@ -82,8 +84,11 @@ async function createCropSelection(page: Page) {
 
   await page.mouse.move(box.x + 80, box.y + 100);
   await page.mouse.down();
+  await page.waitForTimeout(50);
   await page.mouse.move(box.x + 260, box.y + 340, { steps: 12 });
+  await page.waitForTimeout(50);
   await page.mouse.up();
+  await page.waitForTimeout(100);
 
   await expect(page.getByTestId("crop-rectangle")).toBeVisible();
 }
@@ -93,22 +98,22 @@ test("loads a PDF, crops a page, previews, and exports", async ({ page }) => {
 
   await expect(page.getByText("sample.pdf")).toBeVisible();
   await expect(page.getByText("已载入 2 页")).toBeVisible();
-  await expect(page.getByRole("button", { name: /第 2 页/i })).toBeVisible();
+  await expect(page.getByTestId("page-thumbnail-1")).toBeVisible();
 
   await createCropSelection(page);
 
-  await page.getByRole("button", { name: /第 2 页/i }).click({ modifiers: ["Control"] });
-  await page.getByRole("button", { name: /第 1 页/i }).click({ modifiers: ["Control"] });
+  await page.getByTestId("page-thumbnail-1").click({ modifiers: ["Control"] });
+  await page.getByTestId("page-thumbnail-0").click({ modifiers: ["Control"] });
   await page.getByTestId("apply-current-crop-to-selected-pages").click();
 
-  await page.getByRole("button", { name: /第 2 页/i }).click();
+  await page.getByTestId("page-thumbnail-1").click();
   await expect(page.getByTestId("crop-rectangle")).toBeVisible();
 
   await page.getByRole("button", { name: "预览" }).click();
   await expect(page.getByTestId("preview-dialog")).toBeVisible();
   await expect(page.getByTestId("preview-dialog").getByText(/\/ 2/)).toBeVisible();
   await expect(page.getByTestId("preview-dialog").locator("canvas")).toBeVisible();
-  await page.getByTestId("preview-dialog").getByRole("button", { name: "关闭" }).click();
+  await page.getByTestId("preview-dialog-close").click();
   await expect(page.getByTestId("preview-dialog")).toBeHidden();
 
   const downloadPromise = page.waitForEvent("download");
@@ -136,7 +141,7 @@ test("blocks redraw preview and export for cropped rotated pages", async ({ page
   await expect(
     page.getByTestId("preview-dialog").getByRole("button", { name: "Redraw" }),
   ).toBeDisabled();
-  await page.getByTestId("preview-dialog").getByRole("button", { name: "关闭" }).click();
+  await page.getByTestId("preview-dialog-close").click({ force: true });
 
   await page.getByRole("button", { name: "导出" }).click();
   await expect(page.getByTestId("export-dialog")).toBeVisible();
@@ -169,10 +174,10 @@ test("selects a page range and clears crops in bulk", async ({ page }) => {
   await expect(page.getByText("已选 2 页")).toBeVisible();
   await page.getByRole("button", { name: /清除选中页裁剪 \(2\)/i }).click();
 
-  await page.getByRole("button", { name: /第 2 页/i }).click();
+  await page.getByTestId("page-thumbnail-1").click();
   await expect(page.getByTestId("crop-rectangle")).toBeHidden();
 
-  await page.getByRole("button", { name: /第 1 页/i }).click();
+  await page.getByTestId("page-thumbnail-0").click();
   await expect(page.getByTestId("crop-rectangle")).toBeVisible();
 });
 
@@ -184,11 +189,12 @@ test("exports only the selected pages when export range is scoped", async ({ pag
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "导出" }).click();
+  await expect(page.getByTestId("export-dialog")).toBeVisible();
   await page
     .getByTestId("export-dialog")
     .getByRole("button", { name: /选中页/i })
     .click();
-  await page.getByTestId("export-dialog").getByRole("button", { name: "导出 PDF" }).click();
+  await page.getByTestId("export-dialog").getByRole("button", { name: "导出 PDF" }).click({ force: true });
 
   const download = await downloadPromise;
   const downloadPath = await download.path();

@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { usePdfStore } from "@/store/usePdfStore";
-import { getRotatedCroppedPages } from "@/utils/documentWarnings";
+import { useToastStore } from "@/store/useToastStore";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { getRotatedCroppedPages, formatRotatedPagesList } from "@/utils/documentWarnings";
 import type { ExportMode, ExportScope } from "@/types";
 import type { ExportWorkerResponse } from "@/workers/workerTypes";
+import { useThumbnails } from "@/hooks/useThumbnails";
 
 function buildDownloadName(fileName: string | null, mode: ExportMode) {
   const baseName = fileName?.replace(/\.pdf$/i, "") ?? "pdf-tailor-export";
@@ -20,6 +24,7 @@ function normalizeDownloadName(downloadName: string, fileName: string | null, mo
 }
 
 export function ExportDialog() {
+  const { t } = useTranslation();
   const fileName = usePdfStore((state) => state.fileName);
   const fileBuffer = usePdfStore((state) => state.fileBuffer);
   const pages = usePdfStore((state) => state.pages);
@@ -30,28 +35,47 @@ export function ExportDialog() {
   const exportInProgress = usePdfStore((state) => state.exportInProgress);
   const setExportDialogOpen = usePdfStore((state) => state.setExportDialogOpen);
   const setExportInProgress = usePdfStore((state) => state.setExportInProgress);
-  const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
+  const setLastExportSettings = usePdfStore((state) => state.setLastExportSettings);
+  const lastExportScope = usePdfStore((state) => state.lastExportScope);
+  const lastExportMode = usePdfStore((state) => state.lastExportMode);
+  const addToast = useToastStore((state) => state.addToast);
 
-  const [exportMode, setExportMode] = useState<ExportMode>("crop-box");
-  const [exportScope, setExportScope] = useState<ExportScope>("all");
-  const [downloadName, setDownloadName] = useState(buildDownloadName(fileName, "crop-box"));
+  const [exportMode, setExportModeState] = useState<ExportMode>(lastExportMode);
+  const [exportScope, setExportScopeState] = useState<ExportScope>(lastExportScope);
+  const [downloadName, setDownloadName] = useState(buildDownloadName(fileName, lastExportMode));
   const [progressPercent, setProgressPercent] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("正在准备导出...");
-  const workerRef = useRef<Worker | null>(null);
-  const exportGenerationRef = useRef(0);
+  const [progressLabel, setProgressLabel] = useState(t("export.preparingExport"));
+  function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
+const workerRef = useRef<Worker | null>(null);
+  const exportGenerationRef = useRef(0);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(dialogRef, exportDialogOpen);
+
+  // Preview page: first page in target indices
   const selectedTargets = selectedPageIndices.length > 0 ? selectedPageIndices : [currentPageIndex];
   const targetPageIndices = useMemo(() => {
     if (exportScope === "current") {
       return [currentPageIndex];
     }
-
     if (exportScope === "selected") {
       return selectedTargets;
     }
-
     return pages.map((page) => page.pageIndex);
   }, [currentPageIndex, exportScope, pages, selectedTargets]);
+
+  const previewPageIndex = targetPageIndices[0] ?? currentPageIndex;
+  const previewPage = pages.find((p) => p.pageIndex === previewPageIndex);
+  const { thumbnails } = useThumbnails(
+    null,
+    previewPage ? [previewPage] : [],
+  );
+  const previewThumbnail = previewPage ? thumbnails[previewPage.pageIndex] : null;
+
   const croppedPageCount = useMemo(
     () => Object.values(pageCrops).filter((pageCrop) => Boolean(pageCrop.cropRect)).length,
     [pageCrops],
@@ -69,17 +93,40 @@ export function ExportDialog() {
       targetPageIndices.filter((pageIndex) => Boolean(pageCrops[pageIndex]?.cropRect)).length,
     [pageCrops, targetPageIndices],
   );
+  const rotatedCropWarningList = useMemo(
+    () => formatRotatedPagesList(rotatedCroppedPages, "、"),
+    [rotatedCroppedPages],
+  );
+
+  // Estimated output pages
+  const estimatedOutputPages = targetPageIndices.length;
+  // Rough size estimate: original * (crop_ratio_estimate) * compression
+  const estimatedSize = useMemo(() => {
+    if (!fileBuffer || estimatedOutputPages === 0) return null;
+    const scale = scopedCroppedPageCount > 0 ? 0.7 : 1.0;
+    return new Blob([fileBuffer as BlobPart]).size * scale * (estimatedOutputPages / pages.length);
+  }, [fileBuffer, scopedCroppedPageCount, estimatedOutputPages, pages.length]);
+
+  const handleExportModeChange = (mode: ExportMode) => {
+    setExportModeState(mode);
+    setLastExportSettings(exportScope, mode);
+    setDownloadName(buildDownloadName(fileName, mode));
+  };
+
+  const handleExportScopeChange = (scope: ExportScope) => {
+    setExportScopeState(scope);
+    setLastExportSettings(scope, exportMode);
+  };
 
   useEffect(() => {
-    if (!exportDialogOpen) {
-      return;
-    }
+    if (!exportDialogOpen) return;
 
-    setExportMode("crop-box");
-    setExportScope("all");
-    setDownloadName(buildDownloadName(fileName, "crop-box"));
+    setExportModeState(lastExportMode);
+    setExportScopeState(lastExportScope);
+    setDownloadName(buildDownloadName(fileName, lastExportMode));
     setProgressPercent(0);
-    setProgressLabel("正在准备导出...");
+    setProgressLabel(t("export.preparingExport"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exportDialogOpen, fileName]);
 
   useEffect(() => {
@@ -90,9 +137,7 @@ export function ExportDialog() {
   }, []);
 
   useEffect(() => {
-    if (!exportDialogOpen) {
-      return;
-    }
+    if (!exportDialogOpen) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !exportInProgress) {
@@ -104,30 +149,27 @@ export function ExportDialog() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [exportDialogOpen, exportInProgress, setExportDialogOpen]);
 
-  if (!exportDialogOpen) {
-    return null;
-  }
+  if (!exportDialogOpen) return null;
 
   const cancelExport = () => {
     workerRef.current?.terminate();
     workerRef.current = null;
     setExportInProgress(false);
     setProgressPercent(0);
-    setProgressLabel("导出已取消。");
+    setProgressLabel(t("export.exportCancelled"));
   };
 
   const startExport = async () => {
     if (!fileBuffer) {
-      setErrorMessage("请先打开 PDF 再导出。");
+      addToast({ type: "error", message: t("export.pleaseOpenPdfFirst") });
       return;
     }
 
     if (exportMode === "redraw" && redrawBlocked) {
-      setErrorMessage(
-        `当前选中的旋转裁剪页（${rotatedCroppedPages
-          .map((page) => page.pageIndex + 1)
-          .join(", ")}）暂不支持重绘导出，请改用 Crop box 模式。`,
-      );
+      addToast({
+        type: "error",
+        message: t("export.rotatedCropExportError", { list: rotatedCropWarningList }),
+      });
       return;
     }
 
@@ -138,15 +180,14 @@ export function ExportDialog() {
     });
 
     if (hasInvalidCrop) {
-      setErrorMessage("存在无效裁剪框，请调整后再导出。");
+      addToast({ type: "error", message: t("export.invalidCropBox") });
       return;
     }
 
-    setErrorMessage(null);
     setExportInProgress(true);
     setDownloadName(nextDownloadName);
     setProgressPercent(0);
-    setProgressLabel("正在准备导出...");
+    setProgressLabel(t("export.preparingExport"));
 
     workerRef.current?.terminate();
     const generation = exportGenerationRef.current + 1;
@@ -176,8 +217,11 @@ export function ExportDialog() {
         setProgressPercent((current) => Math.max(current, basePercent));
         setProgressLabel(
           response.payload.stage === "saving"
-            ? "正在保存最终 PDF..."
-            : `正在处理第 ${response.payload.completedPages} / ${response.payload.totalPages} 页...`,
+            ? t("export.savingFinalPdf")
+            : t("export.exportingProgress", {
+                current: response.payload.completedPages,
+                total: response.payload.totalPages,
+              }),
         );
         return;
       }
@@ -188,12 +232,12 @@ export function ExportDialog() {
 
       if (response.type === "EXPORT_ERROR") {
         setProgressPercent(0);
-        setErrorMessage(response.payload.message);
+        addToast({ type: "error", message: response.payload.message });
         return;
       }
 
       setProgressPercent(100);
-      setProgressLabel("导出完成。");
+      setProgressLabel(t("export.exportDone"));
       const normalizedBytes = new Uint8Array(response.payload.fileBuffer);
       const blob = new Blob([normalizedBytes], {
         type: "application/pdf",
@@ -215,7 +259,7 @@ export function ExportDialog() {
       worker.terminate();
       workerRef.current = null;
       setProgressPercent(0);
-      setErrorMessage("导出任务执行失败。");
+      addToast({ type: "error", message: t("errors.exportFailed") });
     };
 
     worker.postMessage({
@@ -233,167 +277,202 @@ export function ExportDialog() {
   return (
     <div
       data-testid="export-dialog"
-      className="absolute inset-0 z-50 flex items-center justify-center bg-ink/25 px-4 py-8 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="export-dialog-title"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-ink/25 px-4 py-8 backdrop-blur-sm dark:bg-mist-dark/50"
     >
-      <div className="panel-surface w-full max-w-xl p-6">
+      <div ref={dialogRef} className="panel-surface w-full max-w-3xl p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.22em] text-ink/45">导出</div>
-            <div className="mt-2 text-2xl font-semibold text-ink">生成新的 PDF 文件</div>
-            <div className="mt-2 text-sm text-ink/60">
-              {scopedCroppedPageCount > 0
-                ? `当前导出范围内有 ${scopedCroppedPageCount} 页已经设置裁剪。`
-                : "当前导出范围没有裁剪设置，导出结果会保持原始页面。"}
-            </div>
+            <div id="export-dialog-title" className="text-xs uppercase tracking-[0.22em] text-ink/45 dark:text-ink-light/45">{t("export.title")}</div>
+            <div className="mt-2 text-2xl font-semibold text-ink dark:text-ink-light">{t("export.subtitle")}</div>
           </div>
           <button
             type="button"
             onClick={() => !exportInProgress && setExportDialogOpen(false)}
-            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={exportInProgress}
+            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
           >
-            关闭
+            {t("header.close")}
           </button>
         </div>
 
-        <div className="mt-6 space-y-4">
-          <div>
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              导出范围
+        {/* Two-column layout */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_260px]">
+          {/* Left: Settings */}
+          <div className="space-y-4">
+            {/* Scope */}
+            <div>
+              <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+                {t("export.scopeLabel")}
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {([
+                  { value: "current", label: t("export.currentPage"), desc: t("export.currentPageDesc", { page: currentPageIndex + 1 }) },
+                  { value: "selected", label: t("export.selectedPages"), desc: t("export.selectedPagesDesc", { count: selectedTargets.length }) },
+                  { value: "all", label: t("export.allPages"), desc: t("export.allPagesDesc", { count: pages.length }) },
+                ] as const).map((scope) => (
+                  <button
+                    key={scope.value}
+                    type="button"
+                    onClick={() => handleExportScopeChange(scope.value)}
+                    className={`rounded-[20px] border px-4 py-4 text-left transition ${
+                      exportScope === scope.value
+                        ? "border-sky bg-sky/10 dark:border-sky-dark dark:bg-sky-dark/10"
+                        : "border-ink/10 bg-white/75 hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-ink dark:text-ink-light">{scope.label}</div>
+                    <div className="mt-1 text-sm leading-6 text-ink/60 dark:text-ink-light/55">{scope.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
-              {[
-                {
-                  value: "current",
-                  label: "当前页",
-                  description: `仅导出第 ${currentPageIndex + 1} 页。`,
-                },
-                {
-                  value: "selected",
-                  label: "选中页",
-                  description: `当前已选 ${selectedTargets.length} 页。`,
-                },
-                {
-                  value: "all",
-                  label: "全部页面",
-                  description: `整份文档共 ${pages.length} 页。`,
-                },
-              ].map((scope) => (
+
+            {redrawBlocked && (
+              <div className="rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
+                {t("export.rotatedCropWarning", { list: rotatedCropWarningList })}
+              </div>
+            )}
+
+            {/* Filename */}
+            <label className="block">
+              <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+                {t("export.fileNameLabel")}
+              </div>
+              <input
+                value={downloadName}
+                onChange={(e) => setDownloadName(e.target.value)}
+                className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
+              />
+            </label>
+
+            {/* Export Mode */}
+            <div>
+              <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+                {t("export.exportModeLabel")}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
                 <button
-                  key={scope.value}
                   type="button"
-                  onClick={() => setExportScope(scope.value as ExportScope)}
+                  onClick={() => handleExportModeChange("crop-box")}
                   className={`rounded-[20px] border px-4 py-4 text-left transition ${
-                    exportScope === scope.value
-                      ? "border-sky bg-sky/10"
-                      : "border-ink/10 bg-white/75 hover:border-ink/20"
+                    exportMode === "crop-box"
+                      ? "border-sky bg-sky/10 dark:border-sky-dark dark:bg-sky-dark/10"
+                      : "border-ink/10 bg-white/75 hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
                   }`}
                 >
-                  <div className="text-sm font-semibold text-ink">{scope.label}</div>
-                  <div className="mt-1 text-sm leading-6 text-ink/60">{scope.description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          {redrawBlocked ? (
-            <div className="rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
-              检测到旋转裁剪页：
-              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join("、")}。当前选择下
-              `Redraw` 导出已禁用，因为现有重绘链路还不能安全映射 90°/270° 页面的坐标。
-            </div>
-          ) : null}
-          <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              文件名
-            </div>
-            <input
-              value={downloadName}
-              onChange={(event) => setDownloadName(event.target.value)}
-              className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
-            />
-          </label>
-
-          <div>
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              导出模式
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setExportMode("crop-box");
-                  setDownloadName(buildDownloadName(fileName, "crop-box"));
-                }}
-                className={`rounded-[20px] border px-4 py-4 text-left transition ${
-                  exportMode === "crop-box"
-                    ? "border-sky bg-sky/10"
-                    : "border-ink/10 bg-white/75 hover:border-ink/20"
-                }`}
-              >
-                <div className="text-sm font-semibold text-ink">Crop box</div>
-                <div className="mt-1 text-sm leading-6 text-ink/60">
-                  速度更快，只修改页面的 crop/media box，不重绘页面内容。
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (redrawBlocked) {
-                    return;
-                  }
-                  setExportMode("redraw");
-                  setDownloadName(buildDownloadName(fileName, "redraw"));
-                }}
-                disabled={redrawBlocked}
-                className={`rounded-[20px] border px-4 py-4 text-left transition ${
-                  exportMode === "redraw"
-                    ? "border-sky bg-sky/10"
-                    : "border-ink/10 bg-white/75 hover:border-ink/20"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                <div className="text-sm font-semibold text-ink">Redraw</div>
-                <div className="mt-1 text-sm leading-6 text-ink/60">
-                  以裁剪框大小重建新页面，更适合后续打印或继续处理。
-                </div>
-                {redrawBlocked ? (
-                  <div className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-amber-900">
-                    旋转裁剪页暂不支持
+                  <div className="text-sm font-semibold text-ink dark:text-ink-light">Crop box</div>
+                  <div className="mt-1 text-sm leading-6 text-ink/60 dark:text-ink-light/55">
+                    {t("export.cropBoxDesc")}
                   </div>
-                ) : null}
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => !redrawBlocked && handleExportModeChange("redraw")}
+                  disabled={redrawBlocked}
+                  className={`rounded-[20px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    exportMode === "redraw"
+                      ? "border-sky bg-sky/10 dark:border-sky-dark dark:bg-sky-dark/10"
+                      : "border-ink/10 bg-white/75 hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-ink dark:text-ink-light">Redraw</div>
+                  <div className="mt-1 text-sm leading-6 text-ink/60 dark:text-ink-light/55">
+                    {t("export.redrawDesc")}
+                  </div>
+                  {redrawBlocked && (
+                    <div className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-amber-900">
+                      {t("export.redrawBlockedHint")}
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {exportInProgress && (
+              <div className="rounded-[18px] border border-ink/10 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center justify-between gap-3 text-sm font-medium text-ink dark:text-ink-light">
+                  <span>{progressLabel}</span>
+                  <span>{progressPercent}%</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-ember transition-[width] dark:bg-ember-dark"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Mini preview + summary */}
+          <div className="space-y-3">
+            <div className="rounded-[20px] border border-ink/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="mb-3 text-center text-[10px] uppercase tracking-[0.2em] text-ink/45 dark:text-ink-light/45">
+                {t("export.preview")}
+              </div>
+              <div className="subtle-grid flex aspect-[3/4] items-center justify-center rounded-[12px] border border-dashed border-ink/15 bg-panel dark:border-white/10 dark:bg-panel-dark">
+                {previewThumbnail?.status === "ready" && previewThumbnail.dataUrl ? (
+                  <img
+                    src={previewThumbnail.dataUrl}
+                    alt={previewPage ? t("thumbnail.altText", { page: previewPage.pageIndex + 1 }) : ""}
+                    className="max-h-full rounded-[8px] border border-ink/10 bg-paper object-contain shadow-sm dark:border-white/10 dark:bg-paper-dark dark:shadow-none"
+                  />
+                ) : (
+                  <div className="text-center text-xs text-ink/45 dark:text-ink-light/45">
+                    {previewPage ? `${Math.round(previewPage.widthPt)}×${Math.round(previewPage.heightPt)} pt` : "—"}
+                  </div>
+                )}
+              </div>
+              {previewPage && pageCrops[previewPage.pageIndex]?.cropRect ? (
+                <div className="mt-2 text-center text-[11px] text-ember dark:text-ember-dark">
+                  {Math.round(pageCrops[previewPage.pageIndex].cropRect!.width)}×{Math.round(pageCrops[previewPage.pageIndex].cropRect!.height)} pt
+                </div>
+              ) : null}
+            </div>
+
+            {/* Export summary */}
+            <div className="rounded-[20px] border border-ink/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="mb-3 text-center text-[10px] uppercase tracking-[0.2em] text-ink/45 dark:text-ink-light/45">
+                {t("export.summary")}
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-ink/55 dark:text-ink-light/55">{t("export.summaryOutputPages")}</span>
+                  <span className="font-medium text-ink dark:text-ink-light">{estimatedOutputPages}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-ink/55 dark:text-ink-light/55">{t("export.summaryCroppedPages")}</span>
+                  <span className="font-medium text-ink dark:text-ink-light">{scopedCroppedPageCount}</span>
+                </div>
+                {estimatedSize !== null && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-ink/55 dark:text-ink-light/55">{t("export.summaryEstSize")}</span>
+                    <span className="font-medium text-ink dark:text-ink-light">{formatBytes(estimatedSize)}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          {exportInProgress ? (
-            <div className="rounded-[18px] border border-ink/10 bg-white/80 px-4 py-4">
-              <div className="flex items-center justify-between gap-3 text-sm font-medium text-ink">
-                <span>{progressLabel}</span>
-                <span>{progressPercent}%</span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10">
-                <div
-                  className="h-full rounded-full bg-ember transition-[width]"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-          ) : null}
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={() => (exportInProgress ? cancelExport() : setExportDialogOpen(false))}
-            className="rounded-full border border-ink/10 bg-white/80 px-5 py-2.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-ink/10 bg-white/80 px-5 py-2.5 text-sm font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
           >
-            {exportInProgress ? "取消导出" : "取消"}
+            {exportInProgress ? t("export.cancelExport") : t("export.cancel")}
           </button>
           <button
             type="button"
             onClick={startExport}
             disabled={exportInProgress}
-            className="rounded-full bg-ember px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ember/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full bg-ember px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ember/90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-ember-dark dark:hover:bg-ember-dark/90"
           >
-            {exportInProgress ? "导出中..." : "导出 PDF"}
+            {exportInProgress ? t("header.exporting") : t("export.exportPdf")}
           </button>
         </div>
       </div>

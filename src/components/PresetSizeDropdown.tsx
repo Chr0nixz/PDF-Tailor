@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { PAPER_SIZES } from "@/utils/paperSizes";
 
 interface PresetSizeDropdownProps {
@@ -9,15 +10,16 @@ export function PresetSizeDropdown({
   value,
   onChange,
 }: PresetSizeDropdownProps) {
+  const { t } = useTranslation();
   return (
     <label className="block">
-      <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-        预设纸张
+      <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+        {t("preset.sizeLabel")}
       </div>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
+        className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
       >
         {PAPER_SIZES.map((size) => (
           <option key={size.id} value={size.id}>

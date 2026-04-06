@@ -77,7 +77,7 @@ export const CropRectangle = memo(function CropRectangle({
           <div
             key={handle}
             onPointerDown={(event) => onResizeStart(handle, event)}
-            className={`pointer-events-auto absolute h-5 w-5 rounded-full border-2 border-white bg-sky shadow-md ${className} ${cursor}`}
+            className={`pointer-events-auto absolute h-5 w-5 rounded-full border-2 border-white bg-sky shadow-md transition-transform duration-150 hover:scale-125 ${className} ${cursor}`}
           />
         ))}
       </div>

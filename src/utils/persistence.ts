@@ -9,6 +9,10 @@ export interface PersistedPreferences {
   preferredPresetAnchor: PresetAnchor;
   templates: CropTemplate[];
   selectedTemplateId: string | null;
+  theme: "light" | "dark" | "system";
+  lastExportScope: "current" | "selected" | "all";
+  lastExportMode: "crop-box" | "redraw";
+  onboardingCompleted?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,6 +109,21 @@ export function loadPersistedPreferences(): Partial<PersistedPreferences> {
       selectedTemplateId: templates.some((template) => template.id === selectedTemplateId)
         ? selectedTemplateId
         : null,
+      theme:
+        parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "system"
+          ? parsed.theme
+          : "system",
+      lastExportScope:
+        parsed.lastExportScope === "current" ||
+        parsed.lastExportScope === "selected" ||
+        parsed.lastExportScope === "all"
+          ? parsed.lastExportScope
+          : "all",
+      lastExportMode:
+        parsed.lastExportMode === "crop-box" || parsed.lastExportMode === "redraw"
+          ? parsed.lastExportMode
+          : "crop-box",
+      onboardingCompleted: typeof parsed.onboardingCompleted === "boolean" ? parsed.onboardingCompleted : false,
     };
   } catch {
     return {};

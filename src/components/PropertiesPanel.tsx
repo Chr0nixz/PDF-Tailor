@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CropModeSelector } from "@/components/CropModeSelector";
 import { MarginInputs } from "@/components/MarginInputs";
 import { PresetPositionSelector } from "@/components/PresetPositionSelector";
@@ -22,9 +23,9 @@ function PropertyBlock({
   value: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-ink/8 bg-white/75 px-4 py-3">
-      <div className="text-xs uppercase tracking-[0.18em] text-ink/45">{title}</div>
-      <div className="mt-2 text-sm font-semibold text-ink">{value}</div>
+    <div className="rounded-[22px] border border-ink/8 bg-white/75 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+      <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">{title}</div>
+      <div className="mt-2 text-sm font-semibold text-ink dark:text-ink-light">{value}</div>
     </div>
   );
 }
@@ -39,6 +40,7 @@ function createInputValues(margins: PageMargins, displayUnit: "pt" | "mm") {
 }
 
 export function PropertiesPanel() {
+  const { t } = useTranslation();
   const currentPageIndex = usePdfStore((state) => state.currentPageIndex);
   const displayUnit = usePdfStore((state) => state.displayUnit);
   const setDisplayUnit = usePdfStore((state) => state.setDisplayUnit);
@@ -88,7 +90,7 @@ export function PropertiesPanel() {
   const [marginValues, setMarginValues] = useState(() =>
     createInputValues(margins, displayUnit),
   );
-  const [templateName, setTemplateName] = useState("模板 1");
+  const [templateName, setTemplateName] = useState("\u6A21\u677F 1");
 
   const formatDisplayValue = (valuePt: number) =>
     formatUnit(toDisplayUnit(valuePt, displayUnit));
@@ -106,7 +108,7 @@ export function PropertiesPanel() {
   ]);
 
   useEffect(() => {
-    setTemplateName(selectedTemplate?.name ?? `模板 ${templates.length + 1}`);
+    setTemplateName(selectedTemplate?.name ?? `\u6A21\u677F ${templates.length + 1}`);
   }, [selectedTemplate?.id, selectedTemplate?.name, templates.length]);
 
   const parseMarginValues = useMemo(
@@ -162,6 +164,7 @@ export function PropertiesPanel() {
       currentPageIndex,
       templateName,
       selectedTemplate?.id ?? null,
+      t("properties.newTemplate"),
     );
 
     if (savedId) {
@@ -171,7 +174,7 @@ export function PropertiesPanel() {
 
   const handleCreateTemplate = () => {
     selectTemplate(null);
-    setTemplateName(`模板 ${templates.length + 1}`);
+    setTemplateName(`\u6A21\u677F ${templates.length + 1}`);
   };
 
   const handleModeChange = (nextMode: CropMode) => {
@@ -229,16 +232,16 @@ export function PropertiesPanel() {
   };
 
   return (
-    <aside className="panel-surface flex min-h-0 flex-col overflow-auto p-4 md:min-h-[520px]">
+    <aside className="panel-surface flex min-h-0 flex-col overflow-auto p-4 md:min-h-[520px] lg:h-[var(--panel-viewport-h)]">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">参数</div>
-          <div className="mt-1 text-lg font-semibold">裁剪控制</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-ink/55 dark:text-ink-light/55">{t("properties.title")}</div>
+          <div className="mt-1 text-lg font-semibold text-ink dark:text-ink-light">{t("properties.subtitle")}</div>
         </div>
         <button
           type="button"
           onClick={() => setDisplayUnit(displayUnit === "mm" ? "pt" : "mm")}
-          className="rounded-full border border-ink/10 bg-white/75 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-ink transition hover:border-ink/20"
+          className="rounded-full border border-ink/10 bg-white/75 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
         >
           {displayUnit}
         </button>
@@ -246,35 +249,35 @@ export function PropertiesPanel() {
 
       <div className="space-y-3">
         <PropertyBlock
-          title="文档状态"
+          title={t("properties.docStatus")}
           value={
             documentLoadState === "ready"
-              ? "可开始裁剪"
+              ? t("properties.statusReady")
               : documentLoadState === "loading"
-                ? "加载中"
+                ? t("properties.statusLoading")
                 : documentLoadState === "error"
-                  ? "加载失败"
-                  : "待加载"
+                  ? t("properties.statusError")
+                  : t("properties.statusIdle")
           }
         />
         <PropertyBlock
-          title="当前选区"
+          title={t("properties.currentSelection")}
           value={
             cropRect
               ? `${formatDisplayValue(cropRect.width)} x ${formatDisplayValue(cropRect.height)} ${displayUnit}`
-              : "尚未创建裁剪框"
+              : t("properties.noCropRect")
           }
         />
       </div>
 
-      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
-        <div className="mb-3 text-xs uppercase tracking-[0.18em] text-ink/45">
-          裁剪模式
+      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+        <div className="mb-3 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+          {t("properties.cropModeLabel")}
         </div>
         <CropModeSelector value={mode} onChange={handleModeChange} />
       </div>
 
-      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
+      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
         <div className="space-y-4">
           <PresetSizeDropdown
             value={presetSizeId}
@@ -287,28 +290,28 @@ export function PropertiesPanel() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
+      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-xs uppercase tracking-[0.18em] text-ink/45">模板</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">{t("properties.templateLabel")}</div>
           <button
             type="button"
             onClick={handleCreateTemplate}
-            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink transition hover:border-ink/20"
+            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
           >
-            新建
+            {t("properties.new")}
           </button>
         </div>
         <div className="space-y-3">
           <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              已保存模板
+            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+              {t("properties.savedTemplates")}
             </div>
             <select
               value={selectedTemplateId ?? ""}
               onChange={(event) => selectTemplate(event.target.value || null)}
-              className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
+              className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
             >
-              <option value="">新模板</option>
+              <option value="">{t("properties.newTemplate")}</option>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.name}
@@ -317,12 +320,12 @@ export function PropertiesPanel() {
             </select>
           </label>
           <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">名称</div>
+            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">{t("properties.nameLabel")}</div>
             <input
               value={templateName}
               onChange={(event) => setTemplateName(event.target.value)}
-              placeholder="模板名称"
-              className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
+              placeholder={t("properties.templateNamePlaceholder")}
+              className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
             />
           </label>
           <div className="grid gap-3">
@@ -330,9 +333,9 @@ export function PropertiesPanel() {
               type="button"
               onClick={handleSaveTemplate}
               disabled={!cropRect}
-              className="rounded-full bg-ink px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full bg-ink px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-ink-light dark:text-mist-dark dark:enabled:hover:bg-ink-light/90"
             >
-              {selectedTemplate ? "更新当前模板" : "保存为模板"}
+              {selectedTemplate ? t("properties.updateTemplate") : t("properties.saveTemplate")}
             </button>
             <button
               type="button"
@@ -340,9 +343,9 @@ export function PropertiesPanel() {
                 selectedTemplateId && applyTemplateToPages(selectedTemplateId, [currentPageIndex])
               }
               disabled={!selectedTemplateId || !page}
-              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:enabled:hover:border-white/20 dark:disabled:bg-white/5 dark:disabled:text-ink-light/50"
             >
-              应用到当前页
+              {t("properties.applyToCurrent")}
             </button>
             <button
               type="button"
@@ -351,23 +354,23 @@ export function PropertiesPanel() {
                 applyTemplateToPages(selectedTemplateId, selectedTargets)
               }
               disabled={!selectedTemplateId || selectedTargets.length === 0}
-              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:enabled:hover:border-white/20 dark:disabled:bg-white/5 dark:disabled:text-ink-light/50"
             >
-              应用到选中页 ({selectedTargets.length})
+              {t("properties.applyToSelected", { count: selectedTargets.length })}
             </button>
             <button
               type="button"
               onClick={() => selectedTemplateId && deleteTemplate(selectedTemplateId)}
               disabled={!selectedTemplateId}
-              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:enabled:hover:border-white/20 dark:disabled:bg-white/5 dark:disabled:text-ink-light/50"
             >
-              删除当前模板
+              {t("properties.deleteTemplate")}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
+      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
         <MarginInputs
           unitLabel={displayUnit}
           values={marginValues}
@@ -377,14 +380,14 @@ export function PropertiesPanel() {
       </div>
 
       <div className="mt-4 grid gap-3">
-        <PropertyBlock title="上边距" value={`${formatDisplayValue(margins.top)} ${displayUnit}`} />
-        <PropertyBlock title="右边距" value={`${formatDisplayValue(margins.right)} ${displayUnit}`} />
-        <PropertyBlock title="下边距" value={`${formatDisplayValue(margins.bottom)} ${displayUnit}`} />
-        <PropertyBlock title="左边距" value={`${formatDisplayValue(margins.left)} ${displayUnit}`} />
+        <PropertyBlock title={t("properties.marginTop")} value={`${formatDisplayValue(margins.top)} ${displayUnit}`} />
+        <PropertyBlock title={t("properties.marginRight")} value={`${formatDisplayValue(margins.right)} ${displayUnit}`} />
+        <PropertyBlock title={t("properties.marginBottom")} value={`${formatDisplayValue(margins.bottom)} ${displayUnit}`} />
+        <PropertyBlock title={t("properties.marginLeft")} value={`${formatDisplayValue(margins.left)} ${displayUnit}`} />
       </div>
 
-      <div className="mt-4 rounded-[24px] border border-dashed border-ink/12 bg-panel px-4 py-4 text-sm leading-6 text-ink/65">
-        预设纸张、九宫格定位和数值边距已经联动。你可以先在当前页调整，再批量应用到选中页或整份文档。
+      <div className="mt-4 rounded-[24px] border border-dashed border-ink/12 bg-panel px-4 py-4 text-sm leading-6 text-ink/65 dark:border-white/10 dark:bg-panel-dark/50 dark:text-ink-light/55">
+        {t("properties.marginHint")}
       </div>
 
       <div className="mt-auto grid gap-3 pt-4">
@@ -393,27 +396,27 @@ export function PropertiesPanel() {
           data-testid="clear-current-page-crop"
           disabled={!cropRect}
           onClick={() => clearPageCrop(currentPageIndex)}
-          className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+          className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:enabled:hover:border-white/20 dark:disabled:bg-white/5 dark:disabled:text-ink-light/50"
         >
-          清除当前页裁剪
+          {t("properties.clearCurrentCrop")}
         </button>
         <button
           type="button"
           data-testid="apply-current-crop-to-selected-pages"
           disabled={!cropRect || selectedTargets.length === 0}
           onClick={() => applyCropToPages(currentPageIndex, selectedTargets)}
-          className="rounded-full bg-pine px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-pine/90 disabled:bg-pine/50"
+          className="rounded-full bg-pine px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-pine/90 disabled:bg-pine/50 dark:bg-pine-dark"
         >
-          应用到选中页 ({selectedTargets.length})
+          {t("properties.applyToSelected", { count: selectedTargets.length })}
         </button>
         <button
           type="button"
           data-testid="apply-current-crop-to-all-pages"
           disabled={!cropRect || pages.length === 0}
           onClick={() => applyCropToPages(currentPageIndex, pages.map((pageItem) => pageItem.pageIndex))}
-          className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+          className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:enabled:hover:border-white/20 dark:disabled:bg-white/5 dark:disabled:text-ink-light/50"
         >
-          应用到全部页面 ({pages.length})
+          {t("properties.applyAll", { count: pages.length })}
         </button>
       </div>
     </aside>

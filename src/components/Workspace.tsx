@@ -1,7 +1,10 @@
 import { useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { CropDimensionsTooltip } from "@/components/CropDimensionsTooltip";
 import { CropOverlay } from "@/components/CropOverlay";
 import { CropRectangle } from "@/components/CropRectangle";
 import { PdfPageCanvas } from "@/components/PdfPageCanvas";
+import { Skeleton } from "@/components/Skeleton";
 import { useCropSelection } from "@/hooks/useCropSelection";
 import { usePdfStore } from "@/store/usePdfStore";
 import { selectCurrentPageCrop } from "@/store/selectors";
@@ -13,6 +16,7 @@ interface WorkspaceProps {
 }
 
 export function Workspace({ documentProxy }: WorkspaceProps) {
+  const { t } = useTranslation();
   const currentPageIndex = usePdfStore((state) => state.currentPageIndex);
   const pages = usePdfStore((state) => state.pages);
   const zoom = usePdfStore((state) => state.zoom);
@@ -81,57 +85,56 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
   };
 
   return (
-    <section className="panel-surface flex min-h-0 flex-col overflow-hidden p-4 md:min-h-[520px]">
+    <section className="panel-surface flex min-h-0 flex-col overflow-hidden p-4 md:min-h-[520px] lg:h-auto">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">画布</div>
-          <div className="mt-1 text-lg font-semibold">当前页面</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-ink/55 dark:text-ink-light/55">{t("workspace.title")}</div>
+          <div className="mt-1 text-lg font-semibold text-ink dark:text-ink-light">{t("workspace.subtitle")}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => applyZoomPreset("fit-width")}
             disabled={!page}
-            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
           >
-            适应宽度
+            {t("workspace.fitWidth")}
           </button>
           <button
             type="button"
             onClick={() => applyZoomPreset("fit-page")}
             disabled={!page}
-            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
           >
-            适应页面
+            {t("workspace.fitPage")}
           </button>
           <button
             type="button"
             onClick={() => applyZoomPreset("actual")}
             disabled={!page}
-            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
           >
             100%
           </button>
-          <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-ink/60">
-            缩放 {Math.round(zoom * 100)}%
+          <div aria-live="polite" className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
+            {t("workspace.zoomLabel", { percent: Math.round(zoom * 100) })}
           </div>
         </div>
       </div>
-      <div className="flex flex-1 items-stretch justify-center rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.8)_0%,_rgba(230,238,245,0.8)_100%)] p-6">
+      <div className="flex flex-1 items-stretch justify-center rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.8)_0%,_rgba(230,238,245,0.8)_100%)] p-6 dark:border-white/10 dark:bg-[linear-gradient(180deg,_rgba(15,25,35,0.8)_0%,_rgba(18,28,40,0.8)_100%)]">
         <div
           ref={viewportFrameRef}
           data-testid="workspace-viewport"
-          className="relative flex min-h-[460px] w-full items-start justify-center overflow-auto rounded-[24px] bg-[#dbe3ea] p-8"
+          className="relative flex min-h-[460px] w-full items-start justify-center overflow-auto rounded-[24px] bg-[#dbe3ea] p-3 sm:p-6 md:p-8 dark:bg-[#1a2636]"
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(91,141,239,0.12),_transparent_32%),radial-gradient(circle_at_bottom,_rgba(184,92,56,0.08),_transparent_24%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(91,141,239,0.12),_transparent_32%),radial-gradient(circle_at_bottom,_rgba(184,92,56,0.08),_transparent_24%)] dark:bg-[radial-gradient(circle_at_top,_rgba(91,141,239,0.08),_transparent_32%),radial-gradient(circle_at_bottom,_rgba(232,133,95,0.06),_transparent_24%)]" />
           {documentLoadState === "loading" ? (
-            <div className="relative rounded-[18px] bg-white/75 px-6 py-4 text-center text-sm text-ink/70">
-              正在加载 PDF...
-              {documentLoadProgress !== null ? (
-                <div className="mt-2 font-medium">
-                  {Number.isFinite(documentLoadProgress)
-                    ? `${Math.round(documentLoadProgress)}%`
-                    : "正在准备页面"}
+            <div className="relative z-10 flex flex-col items-center gap-3">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-60 w-40" />
+              {documentLoadProgress !== null && Number.isFinite(documentLoadProgress) ? (
+                <div className="text-sm font-medium text-ink/60 dark:text-ink-light/55">
+                  {Math.round(documentLoadProgress)}%
                 </div>
               ) : null}
             </div>
@@ -154,16 +157,24 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
                       onResizeStart={startResize}
                     />
                   ) : null}
+                  {viewport &&
+                  activeDragState.pageIndex === currentPageIndex &&
+                  draftCropRect ? (
+                    <CropDimensionsTooltip
+                      cropRect={draftCropRect}
+                      viewport={viewport}
+                    />
+                  ) : null}
                 </div>
               </PdfPageCanvas>
-              <div className="absolute right-5 top-5 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white">
-                第 {currentPageIndex + 1} 页
+              <div aria-live="polite" className="absolute right-5 top-5 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white dark:bg-ink-light dark:text-mist-dark">
+                {t("workspace.pageBadge", { page: currentPageIndex + 1 })}
               </div>
             </div>
           ) : null}
           {documentLoadState !== "loading" && (!documentProxy || !page) ? (
-            <div className="relative rounded-[18px] bg-white/75 px-6 py-4 text-sm text-ink/60">
-              打开 PDF 后，这里会显示当前页面和裁剪框。
+            <div className="relative rounded-[18px] bg-white/75 px-6 py-4 text-sm text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
+              {t("workspace.emptyState")}
             </div>
           ) : null}
         </div>

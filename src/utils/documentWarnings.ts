@@ -26,3 +26,10 @@ export function getRotatedCroppedPages(
 export function isLargeDocument(pageCount: number, fileSizeBytes?: number) {
   return pageCount >= 100 || (fileSizeBytes ?? 0) >= 25 * 1024 * 1024;
 }
+
+export function formatRotatedPagesList(
+  pages: { pageIndex: number }[],
+  separator: string = ", ",
+) {
+  return pages.map((page) => page.pageIndex + 1).join(separator);
+}

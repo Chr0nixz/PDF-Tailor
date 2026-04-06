@@ -10,3 +10,5 @@ test-results/
 Thumbs.db
 
 .claude/
+src-tauri/target/
+src-tauri/gen/

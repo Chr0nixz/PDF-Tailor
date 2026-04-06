@@ -1,31 +1,87 @@
 # PDF-Tailor
 
-浏览器端 PDF 可视化裁剪工具。支持自由框选、预设尺寸、多页批量应用、预览和导出，全部在本地浏览器中完成，不依赖后端服务。
+PDF-Tailor is a local-first PDF cropping tool for the browser and desktop.
 
-## 当前版本
+It focuses on one job: open a PDF, visually define crop regions, batch-apply them across pages, preview the result, and export a new file without sending documents to a server.
 
-- 当前目标版本：`v1.0`
-- 当前状态：功能完成，已具备单元测试、E2E 测试和 CI 校验
-- 核心限制：旋转页的 `Redraw` 预览和导出目前会被禁用，需使用 `Crop box`
+## Highlights
 
-## 功能概览
+- Local-first: PDF files stay on the user's machine
+- Visual crop editing with drag selection
+- Edge and center-line snapping
+- Preset paper sizes with 9-grid positioning
+- Numeric margin editing with `mm / pt` switching
+- Multi-page selection and batch apply
+- Preview before export
+- Two export modes: `Crop box` and `Redraw`
+- Undo / redo and keyboard shortcuts
+- Web Worker export pipeline
+- Unit tests, E2E tests, and CI already in place
 
-- 打开本地 PDF 并渲染当前页
-- 左侧缩略图侧栏，支持 `Ctrl/Cmd + Click` 多选页面
-- 自由框选裁剪
-- 裁剪框移动、8 个手柄缩放
-- 页面边缘和中心线吸附
-- 预设纸张尺寸和 9 宫格定位
-- 边距输入，支持 `mm / pt` 切换
-- 将当前页裁剪批量应用到选中页或全部页
-- 预览导出结果
-- 两种导出模式：
-  - `Crop box`
-  - `Redraw`
-- 撤销 / 重做
-- Web Worker 导出
+## Current Status
 
-## 技术栈
+`v1.0` is effectively feature-complete for the initial public release.
+
+Implemented:
+
+- PDF loading and page rendering
+- Interactive crop editing
+- Multi-page workflow
+- Preview and export
+- Automated tests and GitHub Actions CI
+
+Current limitation:
+
+- `Redraw` preview/export is disabled for cropped pages rotated by `90°` or `270°`
+
+## Screenshots
+
+You can add repository screenshots here after publishing, for example:
+
+```text
+docs/screenshots/workspace.png
+docs/screenshots/export-dialog.png
+docs/screenshots/preview-modal.png
+```
+
+Suggested README image section after you capture assets:
+
+```md
+![Workspace](./docs/screenshots/workspace.png)
+![Preview](./docs/screenshots/preview-modal.png)
+```
+
+## Features
+
+### Editing
+
+- Free-form crop rectangle creation
+- Move and resize with 8 handles
+- Snap to page edges and center lines
+- Clear current page crop
+- Keyboard nudging for precise adjustment
+
+### Layout and Presets
+
+- Preset paper sizes
+- 9-point anchor positioning
+- Margin-based editing
+- `mm / pt` unit switching
+
+### Multi-page Workflow
+
+- Thumbnail sidebar
+- `Ctrl/Cmd + Click` multi-select
+- Apply current crop to selected pages
+- Apply current crop to all pages
+
+### Output
+
+- Preview generated from the same export pipeline
+- `Crop box` export for fast output
+- `Redraw` export for true page resizing
+
+## Tech Stack
 
 - React 18
 - TypeScript
@@ -37,22 +93,111 @@
 - `@tanstack/react-virtual`
 - Vitest
 - Playwright
+- Tauri (desktop packaging)
 
-## 文档
+## Getting Started
 
-- 实现文档：[docs/implementation-plan.md](D:/Projects/PDF-Tailor/docs/implementation-plan.md)
-- 发布清单：[docs/v1.0-release-checklist.md](D:/Projects/PDF-Tailor/docs/v1.0-release-checklist.md)
-
-## 本地运行
+### Web Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-默认开发地址通常是 [http://localhost:5173](http://localhost:5173)。
+Default dev URL is usually [http://localhost:5173](http://localhost:5173).
 
-## 测试与构建
+### Desktop Development
+
+```bash
+npm install
+npm run tauri:dev
+```
+
+### Production Build
+
+Web build:
+
+```bash
+npm run build
+```
+
+Desktop build:
+
+```bash
+npm run tauri:build
+```
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Build production web bundle |
+| `npm run preview` | Preview production web bundle |
+| `npm test` | Run Vitest unit tests |
+| `npm run test:e2e` | Run Playwright E2E tests |
+| `npm run tauri:dev` | Start desktop app in dev mode |
+| `npm run tauri:build` | Build desktop app |
+
+## Usage
+
+1. Open a local PDF file
+2. Drag on the page canvas to create a crop rectangle
+3. Adjust the crop via handles, presets, or margin inputs
+4. Select more pages in the sidebar if you want to batch-apply the crop
+5. Preview the output
+6. Export a new PDF
+
+## Keyboard Shortcuts
+
+- `Ctrl/Cmd + Z`: Undo
+- `Ctrl/Cmd + Shift + Z`: Redo
+- `Ctrl/Cmd + Y`: Redo
+- `Ctrl/Cmd + S`: Open export dialog
+- `Ctrl/Cmd + C`: Copy current crop
+- `Ctrl/Cmd + V`: Paste crop to selected pages or current page
+- `Ctrl/Cmd + A`: Select all pages
+- `Ctrl/Cmd + Enter`: Apply current crop to selected pages
+- `Ctrl/Cmd + 0`: Reset zoom to `100%`
+- `Ctrl/Cmd + +` / `Ctrl/Cmd + -`: Zoom
+- `Delete` / `Backspace`: Clear current page crop
+- `Escape`: Cancel draft crop or close modal
+- `PageUp` / `PageDown`: Switch page
+- `Tab` / `Shift + Tab`: Cycle pages
+- `Space`: Open preview
+- `Arrow keys`: Nudge crop rectangle
+- `Shift + Arrow keys`: Larger nudge step
+
+## Export Modes
+
+### Crop box
+
+Fast and practical. Adjusts page boxes directly without rebuilding page content.
+
+### Redraw
+
+Creates new pages sized to the crop result and redraws the page content.
+
+Current limitation:
+
+- Disabled when cropped rotated pages (`90°` / `270°`) are present
+
+## Testing
+
+Unit test coverage currently includes:
+
+- Coordinate conversion
+- Unit conversion
+- Snap logic
+- Export logic
+- Rotation and large-document warnings
+
+E2E coverage currently includes:
+
+- Upload -> crop -> batch apply -> preview -> export
+- Rotated-page restriction flow for `Redraw`
+
+Run all checks locally:
 
 ```bash
 npm test
@@ -60,79 +205,78 @@ npm run test:e2e
 npm run build
 ```
 
-## 使用流程
-
-1. 打开本地 PDF
-2. 在中间画布拖拽创建裁剪框
-3. 通过拖拽、手柄、预设尺寸或边距输入调整裁剪
-4. 在左侧选中多页后批量应用当前页裁剪
-5. 通过 `Preview` 检查结果
-6. 通过 `Export` 导出新 PDF
-
-## 快捷键
-
-- `Ctrl/Cmd + Z`：撤销
-- `Ctrl/Cmd + Shift + Z`：重做
-- `Ctrl/Cmd + Y`：重做
-- `Ctrl/Cmd + S`：打开导出对话框
-- `Ctrl/Cmd + C`：复制当前页裁剪
-- `Ctrl/Cmd + V`：粘贴到选中页或当前页
-- `Ctrl/Cmd + A`：选中全部页面
-- `Ctrl/Cmd + Enter`：将当前页裁剪应用到选中页
-- `Ctrl/Cmd + 0`：缩放重置为 `100%`
-- `Ctrl/Cmd + +` / `Ctrl/Cmd + -`：缩放
-- `Delete` / `Backspace`：清除当前页裁剪
-- `Escape`：取消当前草稿裁剪或关闭弹窗
-- `PageUp` / `PageDown`：切换页面
-- `Tab` / `Shift + Tab`：循环切换页面
-- `Space`：打开预览
-- 方向键：微调当前裁剪框
-- `Shift + 方向键`：大步长微调当前裁剪框
-
-## 导出模式
-
-### Crop box
-
-速度快，直接修改页面 box。适合大多数常规裁剪场景，也是旋转页当前推荐的导出方式。
-
-### Redraw
-
-重新创建目标页面并绘制裁剪后的内容。适合需要“真实裁掉页面尺寸”的场景。
-
-当前限制：
-
-- 若存在已裁剪的 `90°/270°` 旋转页，`Redraw` 预览和导出会被禁用
-
-## 测试覆盖
-
-- 单元测试：
-  - 坐标换算
-  - 单位换算
-  - 吸附逻辑
-  - 导出逻辑
-  - 旋转页和大文档警告逻辑
-- E2E：
-  - 主工作流：上传 -> 裁剪 -> 批量应用 -> 预览 -> 导出
-  - 旋转页限制：`Redraw` 禁用提示与 `Crop box` 导出
-
 ## CI
 
-GitHub Actions 会自动执行：
+GitHub Actions workflow:
 
 - `npm ci`
 - `npm test`
 - `npm run build`
 - `npm run test:e2e`
 
-工作流文件位于 [ci.yml](D:/Projects/PDF-Tailor/.github/workflows/ci.yml)。
+Workflow file: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 
-## 已知限制
+## Project Structure
 
-- 旋转页的 `Redraw` 支持尚未完成
-- 目前没有跨浏览器矩阵测试，E2E 仅跑 Chromium
-- 大文档场景已经可用，但缩略图缓存和导出进度仍有优化空间
-- 预设尺寸在页面本身小于目标纸张时，会被限制在当前页面尺寸内
+```text
+src/
+  components/   UI components
+  hooks/        rendering and interaction logic
+  store/        Zustand state management
+  types/        shared types
+  utils/        geometry, export, conversion, warnings
+  workers/      PDF export worker
+docs/
+  implementation-plan.md
+  v1.0-release-checklist.md
+e2e/
+  app.spec.ts
+src-tauri/
+  Tauri desktop shell
+```
 
-## 部署
+## Documentation
 
-项目是纯前端静态站点，构建产物位于 `dist/`，可直接部署到任意静态托管环境。
+- [Implementation Notes](./docs/implementation-plan.md)
+- [v1.0 Release Checklist](./docs/v1.0-release-checklist.md)
+
+## Roadmap
+
+Planned next steps after `v1.0`:
+
+- Support `Redraw` for rotated cropped pages
+- Add export progress reporting
+- Expand cross-browser E2E coverage
+- Improve large-document thumbnail caching
+- Polish desktop packaging and release flow
+
+## Contributing
+
+Issues and pull requests are welcome.
+
+Recommended contribution flow:
+
+1. Open an issue for bugs, UX problems, or feature proposals
+2. Keep pull requests focused and easy to review
+3. Run local validation before submitting:
+
+```bash
+npm test
+npm run test:e2e
+npm run build
+```
+
+If you change user-facing behavior, update the README or docs alongside the code.
+
+## Known Limitations
+
+- `Redraw` does not yet support cropped rotated pages
+- E2E currently runs only on Chromium
+- Export progress is not yet surfaced as a percentage
+- Preset sizes are clamped when the source page is smaller than the target size
+
+## License
+
+This project is licensed under the Mozilla Public License 2.0.
+
+See [LICENSE](./LICENSE) for the full text.

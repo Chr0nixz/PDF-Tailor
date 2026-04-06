@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import i18n from "@/i18n/i18n";
 import {
   createPresetCropRect,
   cropRectToMargins,
@@ -59,9 +60,13 @@ interface PdfStoreState {
   previewOpen: boolean;
   exportDialogOpen: boolean;
   exportInProgress: boolean;
-  errorMessage: string | null;
+  theme: "light" | "dark" | "system";
   past: HistorySnapshot[];
   future: HistorySnapshot[];
+  lastAction: string | null;
+  lastUndoneAction: string | null;
+  lastExportScope: "current" | "selected" | "all";
+  lastExportMode: "crop-box" | "redraw";
   setDocument: (payload: {
     file: File;
     fileBuffer: Uint8Array;
@@ -71,6 +76,7 @@ interface PdfStoreState {
   }) => void;
   clearDocument: () => void;
   setPages: (pages: PageMetadata[]) => void;
+  reorderPages: (fromIndex: number, toIndex: number) => void;
   setCurrentPage: (pageIndex: number) => void;
   toggleSelectedPage: (
     pageIndex: number,
@@ -122,10 +128,13 @@ interface PdfStoreState {
   commitHistory: () => void;
   undo: () => void;
   redo: () => void;
+  setLastAction: (action: string | null) => void;
+  setLastUndoneAction: (action: string | null) => void;
   setPreviewOpen: (open: boolean) => void;
   setExportDialogOpen: (open: boolean) => void;
   setExportInProgress: (value: boolean) => void;
-  setErrorMessage: (message: string | null) => void;
+  setTheme: (theme: "light" | "dark" | "system") => void;
+  setLastExportSettings: (scope: "current" | "selected" | "all", mode: "crop-box" | "redraw") => void;
   clearPageCrop: (pageIndex: number) => void;
   clearPageCrops: (pageIndices: number[]) => void;
   copyCrop: (pageIndex: number) => void;
@@ -133,7 +142,8 @@ interface PdfStoreState {
   saveTemplateFromPage: (
     pageIndex: number,
     name: string,
-    templateId?: string | null,
+    templateId: string | null | undefined,
+    defaultName: string,
   ) => string | null;
   selectTemplate: (templateId: string | null) => void;
   deleteTemplate: (templateId: string) => void;
@@ -193,9 +203,13 @@ const initialState = {
   previewOpen: false,
   exportDialogOpen: false,
   exportInProgress: false,
-  errorMessage: null,
+  theme: "system" as "light" | "dark" | "system",
   past: [] as HistorySnapshot[],
   future: [] as HistorySnapshot[],
+  lastAction: null as string | null,
+  lastUndoneAction: null as string | null,
+  lastExportScope: persistedPreferences.lastExportScope ?? "all",
+  lastExportMode: persistedPreferences.lastExportMode ?? "crop-box",
 };
 
 function createTemplateId() {
@@ -209,7 +223,8 @@ function createTemplateId() {
 function buildTemplateName(
   name: string,
   templates: CropTemplate[],
-  templateId?: string | null,
+  templateId: string | null | undefined,
+  defaultName: string,
 ) {
   const trimmed = name.trim();
   if (trimmed) {
@@ -217,7 +232,7 @@ function buildTemplateName(
   }
 
   const existingCount = templates.filter((template) => template.id !== templateId).length;
-  return `模板 ${existingCount + 1}`;
+  return `${defaultName} ${existingCount + 1}`;
 }
 
 function persistPreferences(state: Pick<
@@ -228,6 +243,9 @@ function persistPreferences(state: Pick<
   | "preferredPresetAnchor"
   | "templates"
   | "selectedTemplateId"
+  | "theme"
+  | "lastExportScope"
+  | "lastExportMode"
 >) {
   const snapshot: PersistedPreferences = {
     displayUnit: state.displayUnit,
@@ -236,6 +254,9 @@ function persistPreferences(state: Pick<
     preferredPresetAnchor: state.preferredPresetAnchor,
     templates: state.templates,
     selectedTemplateId: state.selectedTemplateId,
+    theme: state.theme,
+    lastExportScope: state.lastExportScope,
+    lastExportMode: state.lastExportMode,
   };
 
   savePersistedPreferences(snapshot);
@@ -323,8 +344,8 @@ function buildRangeSelection(start: number, end: number) {
 }
 
 export const usePdfStore = create<PdfStoreState>((set, get) => ({
-  ...initialState,
   ...persistedPreferences,
+  ...initialState,
   setDocument: ({ file, fileBuffer, fileName, pageCount = 0, pages = [] }) =>
     set({
       file,
@@ -343,7 +364,6 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       past: [],
       future: [],
       exportInProgress: false,
-      errorMessage: null,
     }),
   clearDocument: () =>
     set((state) => ({
@@ -363,6 +383,16 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       selectionAnchorPageIndex: pages.length > 0 ? 0 : null,
       documentLoadState: pages.length > 0 ? "ready" : "idle",
       documentLoadProgress: null,
+    }),
+  reorderPages: (fromIndex, toIndex) =>
+    set((state) => {
+      if (fromIndex === toIndex) {
+        return state;
+      }
+      const newPages = [...state.pages];
+      const [moved] = newPages.splice(fromIndex, 1);
+      newPages.splice(toIndex, 0, moved);
+      return { pages: newPages };
     }),
   setCurrentPage: (pageIndex) =>
     set({
@@ -565,6 +595,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         },
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
+        lastAction: i18n.t("history.action.cropAdjust") as string,
       };
     }),
   clearCropInteraction: () =>
@@ -614,6 +645,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         pageCrops: nextPageCrops,
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
+        lastAction: i18n.t("history.action.batchApply") as string,
       };
     }),
   pushHistoryCheckpoint: () =>
@@ -643,6 +675,8 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         ),
         draftCropRect: null,
         activeSnapGuides: [],
+        lastAction: state.lastAction,
+        lastUndoneAction: state.lastAction,
       };
     }),
   redo: () =>
@@ -659,12 +693,23 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         draftCropRect: null,
         activeSnapGuides: [],
+        lastAction: state.lastAction,
+        lastUndoneAction: state.lastAction,
       };
     }),
+  setLastAction: (action) => set({ lastAction: action }),
+  setLastUndoneAction: (action) => set({ lastUndoneAction: action }),
   setPreviewOpen: (previewOpen) => set({ previewOpen }),
   setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
   setExportInProgress: (exportInProgress) => set({ exportInProgress }),
-  setErrorMessage: (errorMessage) => set({ errorMessage }),
+  setTheme: (theme) => {
+    set({ theme });
+    persistPreferences(get());
+  },
+  setLastExportSettings: (scope, mode) => {
+    set({ lastExportScope: scope, lastExportMode: mode });
+    persistPreferences(get());
+  },
   clearPageCrop: (pageIndex) =>
     set((state) => {
       const current = state.pageCrops[pageIndex];
@@ -679,6 +724,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         pageCrops: nextPageCrops,
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
+        lastAction: i18n.t("history.action.clear") as string,
       };
     }),
   clearPageCrops: (pageIndices) =>
@@ -706,6 +752,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         pageCrops: nextPageCrops,
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
+        lastAction: i18n.t("history.action.clear") as string,
       };
     }),
   copyCrop: (pageIndex) =>
@@ -768,9 +815,10 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         pageCrops: nextPageCrops,
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
+        lastAction: i18n.t("history.action.paste") as string,
       };
     }),
-  saveTemplateFromPage: (pageIndex, name, templateId = null) => {
+  saveTemplateFromPage: (pageIndex, name, templateId = null, defaultName) => {
     const state = get();
     const page = state.pages.find((item) => item.pageIndex === pageIndex);
     const pageCrop = state.pageCrops[pageIndex];
@@ -779,7 +827,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       return null;
     }
 
-    const nextTemplateName = buildTemplateName(name, state.templates, templateId);
+    const nextTemplateName = buildTemplateName(name, state.templates, templateId, defaultName);
     const baseTemplate = buildTemplateFromPageCrop(
       nextTemplateName,
       page,
@@ -860,6 +908,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         preferredPresetAnchor: template.presetAnchor ?? state.preferredPresetAnchor,
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
+        lastAction: i18n.t("history.action.templateApply") as string,
       };
     });
     persistPreferences(get());
@@ -904,6 +953,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         },
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
+        lastAction: i18n.t("history.action.nudge") as string,
       };
     }),
   selectAllPages: () =>

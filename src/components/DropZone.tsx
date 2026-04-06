@@ -1,24 +1,27 @@
 import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { usePdfStore } from "@/store/usePdfStore";
+import { useToastStore } from "@/store/useToastStore";
 import { isPdfFile, readFileAsUint8Array } from "@/utils/fileIO";
 
 export function DropZone() {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const setDocument = usePdfStore((state) => state.setDocument);
-  const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
+  const addToast = useToastStore((state) => state.addToast);
 
   const hintLines = useMemo(
     () => [
-      "所有处理都在浏览器本地完成，不会上传文档。",
-      "支持框选裁剪、模板复用、批量应用、预览和导出。",
+      t("dropzone.hintLocalProcessing"),
+      t("dropzone.hintFeatures"),
     ],
-    [],
+    [t],
   );
 
   const loadFile = async (file: File) => {
     if (!isPdfFile(file)) {
-      setErrorMessage("请选择 PDF 文件。");
+      addToast({ type: "error", message: t("errors.selectPdfFile") });
       return;
     }
 
@@ -30,9 +33,10 @@ export function DropZone() {
         fileName: file.name,
       });
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "无法读取所选文件。",
-      );
+      addToast({
+        type: "error",
+        message: error instanceof Error ? error.message : t("errors.cannotReadFile"),
+      });
     }
   };
 
@@ -78,26 +82,25 @@ export function DropZone() {
       }}
       onDrop={handleDrop}
       className={`panel-surface relative mt-5 flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-10 md:px-10 ${
-        isDragging ? "border-sky bg-mist/80" : ""
+        isDragging ? "border-sky bg-mist/80 dark:border-sky-dark dark:bg-mist-dark/30" : ""
       }`}
     >
-      <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_center,_rgba(184,92,56,0.14),_transparent_70%)]" />
+      <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_center,_rgba(184,92,56,0.14),_transparent_70%)] dark:bg-[radial-gradient(circle_at_center,_rgba(232,133,95,0.12),_transparent_70%)]" />
       <div className="relative z-10 flex max-w-3xl flex-col items-center text-center">
-        <div className="mb-6 rounded-full border border-ink/10 bg-white/70 px-4 py-1 text-xs font-medium uppercase tracking-[0.24em] text-ink/60">
-          本地打开
+        <div className="mb-6 rounded-full border border-ink/10 bg-white/70 px-4 py-1 text-xs font-medium uppercase tracking-[0.24em] text-ink/60 dark:border-white/10 dark:bg-white/5 dark:text-ink-light/55">
+          {t("dropzone.badge")}
         </div>
-        <h1 className="max-w-2xl text-4xl font-semibold leading-tight md:text-6xl">
-          打开 PDF，开始可视化裁剪
+        <h1 className="max-w-2xl text-4xl font-semibold leading-tight text-ink dark:text-ink-light md:text-6xl">
+          {t("dropzone.heroTitle")}
         </h1>
-        <p className="mt-5 max-w-2xl text-base leading-7 text-ink/70 md:text-lg">
-          PDF-Tailor 专注于快速裁剪和批量整理页面。你可以直接拖入文件，
-          在当前页框选区域，再把结果应用到选中页或整份文档。
+        <p className="mt-5 max-w-2xl text-base leading-7 text-ink/70 dark:text-ink-light/70 md:text-lg">
+          {t("dropzone.heroDescription")}
         </p>
         <div className="mt-8 grid w-full gap-4 md:grid-cols-2">
           {hintLines.map((line) => (
             <div
               key={line}
-              className="rounded-[24px] border border-ink/10 bg-white/75 px-5 py-4 text-left text-sm leading-6 text-ink/70"
+              className="rounded-[24px] border border-ink/10 bg-white/75 px-5 py-4 text-left text-sm leading-6 text-ink/70 dark:border-white/10 dark:bg-white/5 dark:text-ink-light/70"
             >
               {line}
             </div>
@@ -116,12 +119,12 @@ export function DropZone() {
             type="button"
             data-testid="choose-pdf-button"
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition hover:bg-ink/90"
+            className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition hover:bg-ink/90 active:scale-[0.97] dark:bg-ink-light dark:text-mist-dark dark:hover:bg-ink-light/90"
           >
-            选择 PDF
+            {t("dropzone.selectPdf")}
           </button>
-          <div className="rounded-full border border-ink/15 bg-white px-6 py-3 text-sm font-medium text-ink">
-            或把文件拖到这个区域
+          <div className="rounded-full border border-ink/15 bg-white px-6 py-3 text-sm font-medium text-ink dark:border-white/10 dark:bg-white/5 dark:text-ink-light">
+            {t("dropzone.dragOrDrop")}
           </div>
         </div>
       </div>

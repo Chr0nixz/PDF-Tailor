@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   loadPdfJs,
   type PDFDocumentLoadingTask,
@@ -6,7 +7,8 @@ import {
   type RenderTask,
 } from "@/lib/pdfjs";
 import { usePdfStore } from "@/store/usePdfStore";
-import { getRotatedCroppedPages } from "@/utils/documentWarnings";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { getRotatedCroppedPages, formatRotatedPagesList } from "@/utils/documentWarnings";
 import type { ExportMode } from "@/types";
 import type { ExportWorkerResponse } from "@/workers/workerTypes";
 
@@ -15,6 +17,7 @@ function fitScale(width: number, height: number) {
 }
 
 export function PreviewModal() {
+  const { t } = useTranslation();
   const previewOpen = usePdfStore((state) => state.previewOpen);
   const fileBuffer = usePdfStore((state) => state.fileBuffer);
   const fileName = usePdfStore((state) => state.fileName);
@@ -29,6 +32,8 @@ export function PreviewModal() {
   const previewDocumentRef = useRef<PDFDocumentProxy | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const previewGenerationRef = useRef(0);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(dialogRef, previewOpen);
 
   const [previewMode, setPreviewMode] = useState<ExportMode>("crop-box");
   const [previewPageIndex, setPreviewPageIndex] = useState(currentPageIndex);
@@ -47,6 +52,10 @@ export function PreviewModal() {
     [pageCrops, pages],
   );
   const redrawBlocked = rotatedCroppedPages.length > 0;
+  const rotatedList = useMemo(
+    () => formatRotatedPagesList(rotatedCroppedPages),
+    [rotatedCroppedPages],
+  );
 
   useEffect(() => {
     if (!previewOpen) {
@@ -63,12 +72,11 @@ export function PreviewModal() {
     if (previewMode === "redraw" && redrawBlocked) {
       setPreviewMode("crop-box");
       setPreviewError(
-        `当前裁剪后的旋转页（${rotatedCroppedPages
-          .map((page) => page.pageIndex + 1)
-          .join(", ")}）暂不支持重绘预览，已自动切换到 Crop box 预览。`,
+        t("preview.rotatedCropWarning", { list: rotatedList }),
       );
     }
-  }, [previewMode, redrawBlocked, rotatedCroppedPages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewMode, redrawBlocked, rotatedList]);
 
   useEffect(() => {
     if (!previewOpen) {
@@ -112,7 +120,7 @@ export function PreviewModal() {
       }
 
       if (!fileBuffer) {
-        setPreviewError("请先打开 PDF 再预览。");
+        setPreviewError(t("preview.pleaseOpenPdfFirst"));
         return;
       }
 
@@ -121,7 +129,7 @@ export function PreviewModal() {
 
       setLoading(true);
       setPreviewError((value) =>
-        value?.startsWith("当前裁剪后的旋转页") ? value : null,
+        value?.startsWith(t("preview.rotatedCropWarning", { list: "" }).slice(0, 20)) ? value : null,
       );
       setPreviewDocumentReady(false);
       await cleanupPreviewDocument();
@@ -176,7 +184,7 @@ export function PreviewModal() {
           setLoading(false);
         } catch (error) {
           setLoading(false);
-          setPreviewError(error instanceof Error ? error.message : "预览文件加载失败。");
+          setPreviewError(error instanceof Error ? error.message : t("preview.failedToLoad"));
         }
       };
 
@@ -184,7 +192,7 @@ export function PreviewModal() {
         setLoading(false);
         worker.terminate();
         workerRef.current = null;
-        setPreviewError("预览任务执行失败。");
+        setPreviewError(t("preview.taskFailed"));
       };
 
       worker.postMessage({
@@ -207,7 +215,7 @@ export function PreviewModal() {
       workerRef.current = null;
       void cleanupPreviewDocument();
     };
-  }, [fileBuffer, pageCrops, pages, previewMode, previewOpen]);
+  }, [fileBuffer, pageCrops, pages, previewMode, previewOpen, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,7 +242,7 @@ export function PreviewModal() {
         const context = canvas.getContext("2d");
 
         if (!context) {
-          throw new Error("无法创建预览画布上下文。");
+          throw new Error(t("preview.noCanvasContext"));
         }
 
         canvas.width = Math.floor(viewport.width * outputScale);
@@ -267,7 +275,7 @@ export function PreviewModal() {
         }
 
         setRendering(false);
-        setPreviewError(error instanceof Error ? error.message : "预览渲染失败。");
+        setPreviewError(error instanceof Error ? error.message : t("preview.renderFailed"));
       }
     };
 
@@ -278,7 +286,7 @@ export function PreviewModal() {
       renderTaskRef.current?.cancel();
       renderTaskRef.current = null;
     };
-  }, [previewOpen, previewPageIndex, pageCount, previewDocumentReady]);
+  }, [previewOpen, previewPageIndex, pageCount, previewDocumentReady, t]);
 
   if (!previewOpen) {
     return null;
@@ -287,34 +295,36 @@ export function PreviewModal() {
   return (
     <div
       data-testid="preview-dialog"
-      className="absolute inset-0 z-50 flex items-center justify-center bg-ink/30 px-4 py-8 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="preview-dialog-title"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-ink/30 px-4 py-8 backdrop-blur-sm dark:bg-mist-dark/50"
     >
-      <div className="panel-surface flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden p-6">
+      <div ref={dialogRef} className="panel-surface flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.22em] text-ink/45">预览</div>
-            <div className="mt-2 text-2xl font-semibold text-ink">{fileName ?? "PDF 预览"}</div>
-            <div className="mt-2 text-sm text-ink/60">
+            <div id="preview-dialog-title" className="text-xs uppercase tracking-[0.22em] text-ink/45 dark:text-ink-light/45">{t("preview.title")}</div>
+            <div className="mt-2 text-2xl font-semibold text-ink dark:text-ink-light">{fileName ?? t("preview.title")}</div>
+            <div className="mt-2 text-sm text-ink/60 dark:text-ink-light/55">
               {croppedPageCount > 0
-                ? `当前有 ${croppedPageCount} 页已经设置裁剪。`
-                : "当前没有裁剪设置，预览会保持原始文档。"}
+                ? t("preview.croppedInfo", { count: croppedPageCount })
+                : t("preview.noCropInfo")}
             </div>
           </div>
           <button
             type="button"
             onClick={() => setPreviewOpen(false)}
             className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20"
+            data-testid="preview-dialog-close"
           >
-            关闭
+            {t("header.close")}
           </button>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           {redrawBlocked ? (
             <div className="w-full rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
-              检测到旋转裁剪页：
-              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join("、")}。当前选择下
-              `Redraw` 预览已禁用。
+              {t("preview.rotatedCropWarningAlt", { list: formatRotatedPagesList(rotatedCroppedPages, "、") })}
             </div>
           ) : null}
           <button
@@ -322,8 +332,8 @@ export function PreviewModal() {
             onClick={() => setPreviewMode("crop-box")}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               previewMode === "crop-box"
-                ? "bg-ink text-white"
-                : "border border-ink/10 bg-white/80 text-ink hover:border-ink/20"
+                ? "bg-ink text-white dark:bg-ink-light dark:text-mist-dark"
+                : "border border-ink/10 bg-white/80 text-ink hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             }`}
           >
             Crop box
@@ -339,8 +349,8 @@ export function PreviewModal() {
             disabled={redrawBlocked}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               previewMode === "redraw"
-                ? "bg-ink text-white"
-                : "border border-ink/10 bg-white/80 text-ink hover:border-ink/20"
+                ? "bg-ink text-white dark:bg-ink-light dark:text-mist-dark"
+                : "border border-ink/10 bg-white/80 text-ink hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             } disabled:cursor-not-allowed disabled:opacity-50`}
           >
             Redraw
@@ -352,7 +362,7 @@ export function PreviewModal() {
               disabled={previewPageIndex <= 0 || loading}
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              上一页
+              {t("preview.noPrevPage")}
             </button>
             <div className="rounded-full bg-white/80 px-3 py-1.5 text-sm font-medium text-ink">
               {pageCount > 0 ? `${previewPageIndex + 1} / ${pageCount}` : "0 / 0"}
@@ -365,29 +375,29 @@ export function PreviewModal() {
               disabled={pageCount === 0 || previewPageIndex >= pageCount - 1 || loading}
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              下一页
+              {t("preview.nextPage")}
             </button>
           </div>
         </div>
 
-        <div className="mt-6 flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.84)_0%,_rgba(230,238,245,0.84)_100%)] p-6">
+        <div className="mt-6 flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.84)_0%,_rgba(230,238,245,0.84)_100%)] p-6 dark:border-white/10 dark:bg-[linear-gradient(180deg,_rgba(15,25,35,0.84)_0%,_rgba(18,28,40,0.84)_100%)]">
           {loading ? (
-            <div className="rounded-[18px] bg-white/80 px-6 py-4 text-sm text-ink/70">
-              正在生成预览...
+            <div className="rounded-[18px] bg-white/80 px-6 py-4 text-sm text-ink/70 dark:bg-white/5 dark:text-ink-light/55">
+              {t("preview.generating")}
             </div>
           ) : previewError ? (
-            <div className="rounded-[18px] border border-ember/20 bg-ember/10 px-6 py-4 text-sm text-ember">
+            <div className="rounded-[18px] border border-ember/20 bg-ember/10 px-6 py-4 text-sm text-ember dark:border-ember-dark/20 dark:bg-ember-dark/10 dark:text-ember-dark">
               {previewError}
             </div>
           ) : (
             <div className="relative">
               <canvas
                 ref={canvasRef}
-                className="block rounded-[20px] border border-ink/10 bg-paper shadow-[0_24px_60px_rgba(24,34,48,0.12)]"
+                className="block rounded-[20px] border border-ink/10 bg-paper shadow-[0_24px_60px_rgba(24,34,48,0.12)] dark:border-white/10 dark:bg-paper-dark dark:shadow-none"
               />
               {rendering ? (
-                <div className="absolute inset-0 flex items-center justify-center rounded-[20px] bg-paper/80 text-sm font-medium text-ink/60">
-                  正在渲染预览...
+                <div className="absolute inset-0 flex items-center justify-center rounded-[20px] bg-paper/80 text-sm font-medium text-ink/60 dark:bg-paper-dark/80 dark:text-ink-light/55">
+                  {t("preview.rendering")}
                 </div>
               ) : null}
             </div>

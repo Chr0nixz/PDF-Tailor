@@ -1,7 +1,23 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { PageThumbnail } from "@/components/PageThumbnail";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { DraggablePageThumbnail } from "@/components/DraggablePageThumbnail";
 import { useThumbnails } from "@/hooks/useThumbnails";
 import { usePdfStore } from "@/store/usePdfStore";
 import type { PDFDocumentProxy } from "@/lib/pdfjs";
@@ -11,13 +27,19 @@ interface PageSidebarProps {
   documentProxy: PDFDocumentProxy | null;
 }
 
+type ParseError =
+  | { key: "sidebar.invalidRange" }
+  | { key: "sidebar.invalidRangeSegment"; segment: string }
+  | { key: "sidebar.invalidPageNum"; segment: string }
+  | { key: "sidebar.pageOutOfRange"; page: number; total: number };
+
 function parsePageRangeInput(value: string, pageCount: number) {
   const trimmed = value.trim();
 
   if (!trimmed) {
     return {
       pageIndices: [] as number[],
-      error: "请输入类似 1-5、8、10-12 的页码范围。",
+      error: { key: "sidebar.invalidRange" } as ParseError,
     };
   }
 
@@ -37,7 +59,7 @@ function parsePageRangeInput(value: string, pageCount: number) {
       if (!Number.isInteger(start) || !Number.isInteger(end)) {
         return {
           pageIndices: [] as number[],
-          error: `页码范围无效：“${segment}”。`,
+          error: { key: "sidebar.invalidRangeSegment", segment } as ParseError,
         };
       }
 
@@ -48,7 +70,7 @@ function parsePageRangeInput(value: string, pageCount: number) {
         if (pageNumber < 1 || pageNumber > pageCount) {
           return {
             pageIndices: [] as number[],
-            error: `页码 ${pageNumber} 超出 1-${pageCount} 范围。`,
+            error: { key: "sidebar.pageOutOfRange", page: pageNumber, total: pageCount } as ParseError,
           };
         }
 
@@ -61,14 +83,14 @@ function parsePageRangeInput(value: string, pageCount: number) {
     if (!Number.isInteger(pageNumber)) {
       return {
         pageIndices: [] as number[],
-        error: `页码无效：“${segment}”。`,
+        error: { key: "sidebar.invalidPageNum", segment } as ParseError,
       };
     }
 
     if (pageNumber < 1 || pageNumber > pageCount) {
       return {
         pageIndices: [] as number[],
-        error: `页码 ${pageNumber} 超出 1-${pageCount} 范围。`,
+        error: { key: "sidebar.pageOutOfRange", page: pageNumber, total: pageCount } as ParseError,
       };
     }
 
@@ -81,7 +103,21 @@ function parsePageRangeInput(value: string, pageCount: number) {
   };
 }
 
+function translateError(t: TFunction<"translation", undefined>, error: ParseError) {
+  switch (error.key) {
+    case "sidebar.invalidRange":
+      return t("sidebar.invalidRange");
+    case "sidebar.invalidRangeSegment":
+      return t("sidebar.invalidRangeSegment", { segment: error.segment });
+    case "sidebar.invalidPageNum":
+      return t("sidebar.invalidPageNum", { segment: error.segment });
+    case "sidebar.pageOutOfRange":
+      return t("sidebar.pageOutOfRange", { page: error.page, total: error.total });
+  }
+}
+
 export function PageSidebar({ documentProxy }: PageSidebarProps) {
+  const { t } = useTranslation();
   const pages = usePdfStore((state) => state.pages);
   const currentPageIndex = usePdfStore((state) => state.currentPageIndex);
   const selectedPageIndices = usePdfStore((state) => state.selectedPageIndices);
@@ -90,16 +126,49 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   const setSelectedPages = usePdfStore((state) => state.setSelectedPages);
   const toggleSelectedPage = usePdfStore((state) => state.toggleSelectedPage);
   const clearPageCrops = usePdfStore((state) => state.clearPageCrops);
+  const reorderPages = usePdfStore((state) => state.reorderPages);
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [pageRangeInput, setPageRangeInput] = useState("");
   const [pageRangeError, setPageRangeError] = useState<string | null>(null);
   const { thumbnails, requestThumbnail } = useThumbnails(documentProxy, pages);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
   const rowVirtualizer = useVirtualizer({
     count: pages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 236,
     overscan: 4,
   });
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) {
+        return;
+      }
+      const parsePageIndex = (id: string | number) =>
+        Number.parseInt(String(id).replace(/^page-/, ""), 10);
+      const activePageIndex = parsePageIndex(active.id);
+      const overPageIndex = parsePageIndex(over.id);
+      const activeIndex = pages.findIndex((page) => page.pageIndex === activePageIndex);
+      const overIndex = pages.findIndex((page) => page.pageIndex === overPageIndex);
+      if (activeIndex !== -1 && overIndex !== -1) {
+        reorderPages(activeIndex, overIndex);
+      }
+    },
+    [pages, reorderPages],
+  );
+  const sortableItems = useMemo(
+    () => pages.map((page) => `page-${page.pageIndex}`),
+    [pages],
+  );
   const croppedPageIndices = useMemo(
     () =>
       pages
@@ -125,7 +194,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   const applyPageRangeSelection = () => {
     const parsed = parsePageRangeInput(pageRangeInput, pages.length);
     if (parsed.error) {
-      setPageRangeError(parsed.error);
+      setPageRangeError(translateError(t, parsed.error));
       return;
     }
 
@@ -137,24 +206,24 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   };
 
   return (
-    <aside className="panel-surface flex min-h-0 flex-col overflow-hidden p-4 md:min-h-[520px]">
+    <aside className="panel-surface flex min-h-0 flex-col overflow-hidden p-4 md:min-h-[520px] lg:h-[var(--panel-viewport-h)] lg:overflow-auto">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">页面</div>
-          <div className="mt-1 text-lg font-semibold">页面导航</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-ink/55 dark:text-ink-light/55">{t("sidebar.title")}</div>
+          <div className="mt-1 text-lg font-semibold text-ink dark:text-ink-light">{t("sidebar.subtitle")}</div>
         </div>
-        <div className="rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-ink/60">
-          共 {pages.length} 页
+        <div className="rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
+          {t("sidebar.totalPages", { count: pages.length })}
         </div>
       </div>
       {documentLoadState === "ready" && pages.length > 0 ? (
-        <div className="mb-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
+        <div className="mb-4 rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-xs uppercase tracking-[0.18em] text-ink/45">
-              批量选择
+            <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+              {t("sidebar.batchSelectLabel")}
             </div>
-            <div className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">
-              已选 {selectedPageIndices.length} 页
+            <div className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
+              {t("sidebar.selectedCount", { count: selectedPageIndices.length })}
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -166,9 +235,9 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                   anchorPageIndex: croppedPageIndices[0] ?? null,
                 })
               }
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
+              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             >
-              已裁剪 ({croppedPageIndices.length})
+              {t("sidebar.cropped", { count: croppedPageIndices.length })}
             </button>
             <button
               type="button"
@@ -178,9 +247,9 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                   anchorPageIndex: uncroppedPageIndices[0] ?? null,
                 })
               }
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
+              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             >
-              未裁剪 ({uncroppedPageIndices.length})
+              {t("sidebar.uncropped", { count: uncroppedPageIndices.length })}
             </button>
             <button
               type="button"
@@ -190,9 +259,9 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                   anchorPageIndex: rotatedPageIndices[0] ?? null,
                 })
               }
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
+              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             >
-              旋转页 ({rotatedPageIndices.length})
+              {t("sidebar.rotated", { count: rotatedPageIndices.length })}
             </button>
             <button
               type="button"
@@ -202,14 +271,14 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                   { currentPageIndex: 0, anchorPageIndex: 0 },
                 )
               }
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
+              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             >
-              全部页面
+              {t("sidebar.allPages")}
             </button>
           </div>
           <div className="mt-3">
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              页码范围
+            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+              {t("sidebar.pageRangeLabel")}
             </div>
             <div className="flex gap-2">
               <input
@@ -220,22 +289,22 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                     applyPageRangeSelection();
                   }
                 }}
-                placeholder="例如：1-5，8，10-12"
-                className="min-w-0 flex-1 rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
+                placeholder={t("sidebar.pageRangePlaceholder")}
+                className="min-w-0 flex-1 rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
               />
               <button
                 type="button"
                 onClick={applyPageRangeSelection}
-                className="rounded-full bg-ink px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-white transition hover:bg-ink/90"
+                className="rounded-full bg-ink px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-white transition hover:bg-ink/90 dark:bg-ink-light dark:text-mist-dark dark:hover:bg-ink-light/90"
               >
-                选择
+                {t("sidebar.select")}
               </button>
             </div>
             {pageRangeError ? (
               <div className="mt-2 text-xs text-ember">{pageRangeError}</div>
             ) : (
-              <div className="mt-2 text-xs text-ink/50">
-                按住 Shift 点击缩略图，可从上一次焦点页连续选择。
+              <div className="mt-2 text-xs text-ink/50 dark:text-ink-light/50">
+                {t("sidebar.shiftSelectHint")}
               </div>
             )}
           </div>
@@ -244,63 +313,74 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               type="button"
               disabled={selectedCroppedCount === 0}
               onClick={() => clearPageCrops(selectedPageIndices)}
-              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:enabled:hover:border-white/20 dark:disabled:bg-white/5 dark:disabled:text-ink-light/50"
             >
-              清除选中页裁剪 ({selectedCroppedCount})
+              {t("sidebar.clearSelectedCrops", { count: selectedCroppedCount })}
             </button>
           </div>
         </div>
       ) : null}
       {documentLoadState === "loading" ? (
-        <div className="flex flex-1 items-center justify-center rounded-[24px] border border-dashed border-ink/10 bg-white/60 px-4 text-center text-sm text-ink/60">
-          正在读取页面信息...
+        <div className="flex flex-1 items-center justify-center rounded-[24px] border border-dashed border-ink/10 bg-white/60 px-4 text-center text-sm text-ink/60 dark:border-white/10 dark:bg-white/5 dark:text-ink-light/55">
+          {t("sidebar.readingPages")}
         </div>
       ) : null}
       {documentLoadState !== "loading" ? (
         <div ref={parentRef} className="min-h-0 flex-1 overflow-auto pr-1">
-          <div
-            className="relative"
-            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
           >
-            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-              const page = pages[virtualItem.index];
+            <SortableContext
+              items={sortableItems}
+              strategy={verticalListSortingStrategy}
+            >
+              <div
+                className="relative"
+                style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                  const page = pages[virtualItem.index];
 
-              if (!page) {
-                return null;
-              }
+                  if (!page) {
+                    return null;
+                  }
 
-              const active = page.pageIndex === currentPageIndex;
-              const selected = selectedPageIndices.includes(page.pageIndex);
-              const hasCrop = Boolean(pageCrops[page.pageIndex]?.cropRect);
+                  const active = page.pageIndex === currentPageIndex;
+                  const selected = selectedPageIndices.includes(page.pageIndex);
+                  const hasCrop = Boolean(pageCrops[page.pageIndex]?.cropRect);
 
-              return (
-                <div
-                  key={page.pageIndex}
-                  className="absolute left-0 top-0 w-full pb-3"
-                  style={{ transform: `translateY(${virtualItem.start}px)` }}
-                >
-                  <PageThumbnail
-                    page={page}
-                    isActive={active}
-                    isSelected={selected}
-                    hasCrop={hasCrop}
-                    thumbnail={thumbnails[page.pageIndex] ?? null}
-                    onVisible={requestThumbnail}
-                    onSelect={(event: MouseEvent<HTMLButtonElement>) =>
-                      toggleSelectedPage(
-                        page.pageIndex,
-                        event.ctrlKey || event.metaKey,
-                        event.shiftKey,
-                      )
-                    }
-                  />
-                </div>
-              );
-            })}
-          </div>
+                  return (
+                    <div
+                      key={page.pageIndex}
+                      className="absolute left-0 top-0 w-full pb-3"
+                      style={{ transform: `translateY(${virtualItem.start}px)` }}
+                    >
+                      <DraggablePageThumbnail
+                        page={page}
+                        isActive={active}
+                        isSelected={selected}
+                        hasCrop={hasCrop}
+                        thumbnail={thumbnails[page.pageIndex] ?? null}
+                        onVisible={requestThumbnail}
+                        onSelect={(event: MouseEvent<HTMLButtonElement>) =>
+                          toggleSelectedPage(
+                            page.pageIndex,
+                            event.ctrlKey || event.metaKey,
+                            event.shiftKey,
+                          )
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
           {pages.length === 0 ? (
-            <div className="flex h-full min-h-52 items-center justify-center rounded-[24px] border border-dashed border-ink/10 bg-white/60 px-4 text-center text-sm text-ink/60">
-              暂无可显示页面。
+            <div className="flex h-full min-h-52 items-center justify-center rounded-[24px] border border-dashed border-ink/10 bg-white/60 px-4 text-center text-sm text-ink/60 dark:border-white/10 dark:bg-white/5 dark:text-ink-light/55">
+              {t("sidebar.noPagesHint")}
             </div>
           ) : null}
         </div>

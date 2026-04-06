@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import i18n from "@/i18n/i18n";
 import {
   loadPdfJs,
   type OnProgressParameters,
@@ -6,22 +7,23 @@ import {
   type PDFDocumentProxy,
 } from "@/lib/pdfjs";
 import { usePdfStore } from "@/store/usePdfStore";
+import { useToastStore } from "@/store/useToastStore";
 import type { PageMetadata } from "@/types";
 
 function getDocumentErrorMessage(error: unknown) {
   if (error instanceof Error) {
     if (error.name === "PasswordException") {
-      return "暂不支持带密码保护的 PDF。";
+      return i18n.t("errors.passwordProtected");
     }
 
     if (error.name === "InvalidPDFException") {
-      return "所选文件不是有效的 PDF 文档。";
+      return i18n.t("errors.invalidPdf");
     }
 
     return error.message;
   }
 
-  return "无法加载所选 PDF 文档。";
+  return i18n.t("errors.cannotLoadPdf");
 }
 
 async function readPageMetadata(document: PDFDocumentProxy): Promise<PageMetadata[]> {
@@ -59,7 +61,7 @@ export function usePdfRenderer() {
   const fileBuffer = usePdfStore((state) => state.fileBuffer);
   const setPages = usePdfStore((state) => state.setPages);
   const setDocumentLoadState = usePdfStore((state) => state.setDocumentLoadState);
-  const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
+  const addToast = useToastStore((state) => state.addToast);
 
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const documentRef = useRef<PDFDocumentProxy | null>(null);
@@ -91,11 +93,9 @@ export function usePdfRenderer() {
       if (!fileBuffer) {
         setPages([]);
         setDocumentLoadState("idle");
-        setErrorMessage(null);
         return;
       }
 
-      setErrorMessage(null);
       setDocumentLoadState("loading", 0);
 
       try {
@@ -140,7 +140,7 @@ export function usePdfRenderer() {
 
         setPages([]);
         setDocumentLoadState("error");
-        setErrorMessage(getDocumentErrorMessage(error));
+        addToast({ type: "error", message: getDocumentErrorMessage(error) });
         setDocumentProxy(null);
       }
     };
@@ -151,7 +151,7 @@ export function usePdfRenderer() {
       cancelled = true;
       void destroyCurrentDocument();
     };
-  }, [fileBuffer, setDocumentLoadState, setErrorMessage, setPages]);
+  }, [fileBuffer, setDocumentLoadState, addToast, setPages]);
 
   return {
     documentProxy,

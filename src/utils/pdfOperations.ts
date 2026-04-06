@@ -1,3 +1,4 @@
+import i18n from "@/i18n/i18n";
 import { PDFDocument } from "pdf-lib";
 import type { CropRect, PageCropState, WorkerExportPayload } from "@/types";
 import { isQuarterTurnRotation } from "@/utils/documentWarnings";
@@ -20,7 +21,7 @@ function getValidCropRect(pageCrop: PageCropState | undefined): CropRect | null 
   }
 
   if (cropRect.width <= 0 || cropRect.height <= 0) {
-    throw new Error(`第 ${cropRect.pageIndex + 1} 页的裁剪尺寸无效。`);
+    throw new Error(i18n.t("errors.invalidCropDimensions", { page: cropRect.pageIndex + 1 }));
   }
 
   return cropRect;
@@ -102,7 +103,7 @@ async function exportWithRedraw(payload: WorkerExportPayload, options?: ExportPd
 
     if (isQuarterTurnRotation(rotation)) {
       throw new Error(
-        `Redraw 导出暂不支持带裁剪框的旋转页（第 ${pageIndex + 1} 页），请改用 Crop box 模式。`,
+        i18n.t("errors.redrawRotatedNotSupported", { page: pageIndex + 1 }),
       );
     }
 

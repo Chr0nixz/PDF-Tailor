@@ -9,6 +9,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --panel-viewport-h: calc(100vh - 7rem);
+}
+
+.dark {
+  color: #e6eef5;
+  background: #0b1018;
 }
 
 * {
@@ -32,9 +38,34 @@ select {
   font: inherit;
 }
 
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
 @layer components {
   .panel-surface {
     @apply rounded-[28px] border border-white/60 bg-paper/90 shadow-panel backdrop-blur;
+    animation: fadeSlideUp 0.3s ease-out;
+  }
+
+  .dark .panel-surface {
+    @apply border-white/10 bg-panel-dark/90 shadow-panel-dark;
   }
 
   .subtle-grid {
@@ -42,5 +73,33 @@ select {
       linear-gradient(to right, rgba(24, 34, 48, 0.06) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(24, 34, 48, 0.06) 1px, transparent 1px);
     background-size: 18px 18px;
+  }
+
+  .dark .subtle-grid {
+    background-image:
+      linear-gradient(to right, rgba(230, 238, 245, 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(230, 238, 245, 0.06) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(24, 34, 48, 0.06) 25%,
+      rgba(24, 34, 48, 0.12) 50%,
+      rgba(24, 34, 48, 0.06) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  .dark .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(230, 238, 245, 0.04) 25%,
+      rgba(230, 238, 245, 0.1) 50%,
+      rgba(230, 238, 245, 0.04) 75%
+    );
+    background-size: 200% 100%;
   }
 }

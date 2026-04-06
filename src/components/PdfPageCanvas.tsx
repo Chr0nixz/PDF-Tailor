@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from "@/lib/pdfjs";
 
 interface PdfPageCanvasProps {
@@ -19,6 +20,7 @@ export function PdfPageCanvas({
   zoom,
   children,
 }: PdfPageCanvasProps) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const pageRef = useRef<PDFPageProxy | null>(null);
@@ -146,12 +148,12 @@ export function PdfPageCanvas({
       {children}
       {renderState === "loading" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-paper/80 text-sm font-medium text-ink/60">
-          正在渲染页面...
+          {t("workspace.renderingPage")}
         </div>
       ) : null}
       {renderState === "error" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-paper/90 px-6 text-center text-sm font-medium text-ember">
-          当前页面渲染失败。
+          {t("workspace.renderFailed")}
         </div>
       ) : null}
     </div>
