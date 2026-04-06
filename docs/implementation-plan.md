@@ -230,3 +230,5 @@ CI 工作流位于 [ci.yml](D:/Projects/PDF-Tailor/.github/workflows/ci.yml)，�
 - 页面重排
 - 裁剪模板保存
 - 更细的批量操作范围控制
+
+更完整的后续版本规划见 [roadmap.md](D:/Projects/PDF-Tailor/docs/roadmap.md)。
