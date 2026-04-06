@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { expect, test, type Page } from "@playwright/test";
+import { degrees, PDFDocument, StandardFonts } from "pdf-lib";
 
 async function createSamplePdf() {
   const pdfDoc = await PDFDocument.create();
@@ -24,19 +24,32 @@ async function createSamplePdf() {
   return Buffer.from(await pdfDoc.save());
 }
 
-test("loads a PDF, crops a page, previews, and exports", async ({ page }) => {
-  await page.goto("/");
+async function createRotatedPdf() {
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  await page.getByTestId("pdf-file-input").setInputFiles({
-    name: "sample.pdf",
-    mimeType: "application/pdf",
-    buffer: await createSamplePdf(),
+  const page = pdfDoc.addPage([400, 600]);
+  page.setRotation(degrees(90));
+  page.drawText("Rotated page", {
+    x: 24,
+    y: 560,
+    size: 20,
+    font,
   });
 
-  await expect(page.getByText("sample.pdf")).toBeVisible();
-  await expect(page.getByText("2 pages loaded")).toBeVisible();
-  await expect(page.getByRole("button", { name: /page 2/i })).toBeVisible();
+  return Buffer.from(await pdfDoc.save());
+}
 
+async function uploadPdf(page: Page, name: string, buffer: Buffer) {
+  await page.goto("/");
+  await page.getByTestId("pdf-file-input").setInputFiles({
+    name,
+    mimeType: "application/pdf",
+    buffer,
+  });
+}
+
+async function createCropSelection(page: Page) {
   const cropLayer = page.getByTestId("crop-layer");
   await expect(cropLayer).toBeVisible();
 
@@ -51,6 +64,16 @@ test("loads a PDF, crops a page, previews, and exports", async ({ page }) => {
   await page.mouse.up();
 
   await expect(page.getByTestId("crop-rectangle")).toBeVisible();
+}
+
+test("loads a PDF, crops a page, previews, and exports", async ({ page }) => {
+  await uploadPdf(page, "sample.pdf", await createSamplePdf());
+
+  await expect(page.getByText("sample.pdf")).toBeVisible();
+  await expect(page.getByText("2 pages loaded")).toBeVisible();
+  await expect(page.getByRole("button", { name: /page 2/i })).toBeVisible();
+
+  await createCropSelection(page);
 
   await page.getByRole("button", { name: /page 2/i }).click({ modifiers: ["Control"] });
   await page.getByRole("button", { name: /page 1/i }).click({ modifiers: ["Control"] });
@@ -73,4 +96,39 @@ test("loads a PDF, crops a page, previews, and exports", async ({ page }) => {
 
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("sample-crop-box.pdf");
+});
+
+test("blocks redraw preview and export for cropped rotated pages", async ({ page }) => {
+  await uploadPdf(page, "rotated.pdf", await createRotatedPdf());
+
+  await expect(page.getByText("rotated.pdf")).toBeVisible();
+  await expect(page.getByText("1 pages loaded")).toBeVisible();
+  await expect(page.getByText("1 rotated page(s)")).toBeVisible();
+  await expect(page.getByText("90°")).toBeVisible();
+
+  await createCropSelection(page);
+
+  await page.getByRole("button", { name: "Preview" }).click();
+  await expect(page.getByTestId("preview-dialog")).toBeVisible();
+  await expect(page.getByText(/rotated cropped pages detected/i)).toBeVisible();
+  await expect(
+    page.getByTestId("preview-dialog").getByRole("button", { name: "Redraw" }),
+  ).toBeDisabled();
+  await page.getByTestId("preview-dialog").getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: "Export" }).click();
+  await expect(page.getByTestId("export-dialog")).toBeVisible();
+  await expect(
+    page.getByTestId("export-dialog").getByRole("button", {
+      name: /disabled for rotated cropped pages/i,
+    }),
+  ).toBeDisabled();
+  await expect(
+    page.getByTestId("export-dialog").getByText(/redraw.*disabled/i).first(),
+  ).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId("export-dialog").getByRole("button", { name: "Export PDF" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("rotated-crop-box.pdf");
 });
