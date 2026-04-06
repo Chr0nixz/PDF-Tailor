@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfStore } from "@/store/usePdfStore";
+import { getRotatedCroppedPages } from "@/utils/documentWarnings";
 import type { ExportMode } from "@/types";
 import type { ExportWorkerResponse } from "@/workers/workerTypes";
 
@@ -21,6 +22,7 @@ function normalizeDownloadName(downloadName: string, fileName: string | null, mo
 export function ExportDialog() {
   const fileName = usePdfStore((state) => state.fileName);
   const fileBuffer = usePdfStore((state) => state.fileBuffer);
+  const pages = usePdfStore((state) => state.pages);
   const pageCrops = usePdfStore((state) => state.pageCrops);
   const exportDialogOpen = usePdfStore((state) => state.exportDialogOpen);
   const exportInProgress = usePdfStore((state) => state.exportInProgress);
@@ -37,6 +39,11 @@ export function ExportDialog() {
     () => Object.values(pageCrops).filter((pageCrop) => Boolean(pageCrop.cropRect)).length,
     [pageCrops],
   );
+  const rotatedCroppedPages = useMemo(
+    () => getRotatedCroppedPages(pages, pageCrops),
+    [pageCrops, pages],
+  );
+  const redrawBlocked = rotatedCroppedPages.length > 0;
 
   useEffect(() => {
     if (!exportDialogOpen) {
@@ -76,6 +83,15 @@ export function ExportDialog() {
   const startExport = async () => {
     if (!fileBuffer) {
       setErrorMessage("Open a PDF before exporting.");
+      return;
+    }
+
+    if (exportMode === "redraw" && redrawBlocked) {
+      setErrorMessage(
+        `Redraw export is not available while cropped rotated pages are selected (${rotatedCroppedPages
+          .map((page) => page.pageIndex + 1)
+          .join(", ")}). Use Crop box mode instead.`,
+      );
       return;
     }
 
@@ -179,6 +195,14 @@ export function ExportDialog() {
         </div>
 
         <div className="mt-6 space-y-4">
+          {redrawBlocked ? (
+            <div className="rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
+              Rotated cropped pages detected on page {rotatedCroppedPages.length > 1 ? "s" : ""}{" "}
+              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join(", ")}. `Redraw`
+              export is disabled for this selection because the current redraw pipeline does not
+              safely remap 90/270 degree page coordinates yet.
+            </div>
+          ) : null}
           <label className="block">
             <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
               File name
@@ -215,19 +239,28 @@ export function ExportDialog() {
               <button
                 type="button"
                 onClick={() => {
+                  if (redrawBlocked) {
+                    return;
+                  }
                   setExportMode("redraw");
                   setDownloadName(buildDownloadName(fileName, "redraw"));
                 }}
+                disabled={redrawBlocked}
                 className={`rounded-[20px] border px-4 py-4 text-left transition ${
                   exportMode === "redraw"
                     ? "border-sky bg-sky/10"
                     : "border-ink/10 bg-white/75 hover:border-ink/20"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 <div className="text-sm font-semibold text-ink">Redraw</div>
                 <div className="mt-1 text-sm leading-6 text-ink/60">
                   Creates new pages using the crop rectangle as the final page size.
                 </div>
+                {redrawBlocked ? (
+                  <div className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-amber-900">
+                    Disabled for rotated cropped pages
+                  </div>
+                ) : null}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useRef, type ChangeEvent } from "react";
 import { usePdfStore } from "@/store/usePdfStore";
+import { getRotatedPages, isLargeDocument } from "@/utils/documentWarnings";
 import { isPdfFile, readFileAsUint8Array } from "@/utils/fileIO";
 
 function ZoomButton({
@@ -25,6 +26,8 @@ export function Header() {
   const fileName = usePdfStore((state) => state.fileName);
   const zoom = usePdfStore((state) => state.zoom);
   const pageCount = usePdfStore((state) => state.pageCount);
+  const file = usePdfStore((state) => state.file);
+  const pages = usePdfStore((state) => state.pages);
   const documentLoadState = usePdfStore((state) => state.documentLoadState);
   const previewOpen = usePdfStore((state) => state.previewOpen);
   const exportInProgress = usePdfStore((state) => state.exportInProgress);
@@ -34,6 +37,8 @@ export function Header() {
   const setExportDialogOpen = usePdfStore((state) => state.setExportDialogOpen);
   const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
   const clearDocument = usePdfStore((state) => state.clearDocument);
+  const rotatedPages = getRotatedPages(pages);
+  const largeDocument = isLargeDocument(pageCount, file?.size);
 
   const openFilePicker = () => {
     fileInputRef.current?.click();
@@ -85,6 +90,20 @@ export function Header() {
                 ? `${pageCount} pages loaded`
                 : "Choose a local PDF to begin"}
           </div>
+          {fileName ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {rotatedPages.length > 0 ? (
+                <div className="rounded-full border border-amber-300/60 bg-amber-100/70 px-3 py-1 text-xs font-medium text-amber-900">
+                  {rotatedPages.length} rotated page(s)
+                </div>
+              ) : null}
+              {largeDocument ? (
+                <div className="rounded-full border border-ink/10 bg-white/75 px-3 py-1 text-xs font-medium text-ink/65">
+                  Large document mode
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">

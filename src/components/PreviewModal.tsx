@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { loadPdfJs, type PDFDocumentLoadingTask, type PDFDocumentProxy, type RenderTask } from "@/lib/pdfjs";
+import {
+  loadPdfJs,
+  type PDFDocumentLoadingTask,
+  type PDFDocumentProxy,
+  type RenderTask,
+} from "@/lib/pdfjs";
 import { usePdfStore } from "@/store/usePdfStore";
+import { getRotatedCroppedPages } from "@/utils/documentWarnings";
 import type { ExportMode } from "@/types";
 import type { ExportWorkerResponse } from "@/workers/workerTypes";
 
@@ -13,9 +19,9 @@ export function PreviewModal() {
   const fileBuffer = usePdfStore((state) => state.fileBuffer);
   const fileName = usePdfStore((state) => state.fileName);
   const currentPageIndex = usePdfStore((state) => state.currentPageIndex);
+  const pages = usePdfStore((state) => state.pages);
   const pageCrops = usePdfStore((state) => state.pageCrops);
   const setPreviewOpen = usePdfStore((state) => state.setPreviewOpen);
-  const setErrorMessage = usePdfStore((state) => state.setErrorMessage);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -28,7 +34,6 @@ export function PreviewModal() {
   const [previewPageIndex, setPreviewPageIndex] = useState(currentPageIndex);
   const [pageCount, setPageCount] = useState(0);
   const [previewDocumentReady, setPreviewDocumentReady] = useState(false);
-  const [previewGeneration, setPreviewGeneration] = useState(0);
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -37,6 +42,11 @@ export function PreviewModal() {
     () => Object.values(pageCrops).filter((pageCrop) => Boolean(pageCrop.cropRect)).length,
     [pageCrops],
   );
+  const rotatedCroppedPages = useMemo(
+    () => getRotatedCroppedPages(pages, pageCrops),
+    [pageCrops, pages],
+  );
+  const redrawBlocked = rotatedCroppedPages.length > 0;
 
   useEffect(() => {
     if (!previewOpen) {
@@ -47,8 +57,18 @@ export function PreviewModal() {
     setPreviewPageIndex(currentPageIndex);
     setPreviewError(null);
     setPreviewDocumentReady(false);
-    setPreviewGeneration(0);
   }, [previewOpen, currentPageIndex]);
+
+  useEffect(() => {
+    if (previewMode === "redraw" && redrawBlocked) {
+      setPreviewMode("crop-box");
+      setPreviewError(
+        `Redraw preview is not available for cropped rotated pages (${rotatedCroppedPages
+          .map((page) => page.pageIndex + 1)
+          .join(", ")}). Showing Crop box preview instead.`,
+      );
+    }
+  }, [previewMode, redrawBlocked, rotatedCroppedPages]);
 
   useEffect(() => {
     if (!previewOpen) {
@@ -96,13 +116,13 @@ export function PreviewModal() {
         return;
       }
 
-      // Capture generation at build start — responses for stale generations are discarded
       const buildGeneration = previewGenerationRef.current + 1;
       previewGenerationRef.current = buildGeneration;
-      setPreviewGeneration(buildGeneration);
 
       setLoading(true);
-      setPreviewError(null);
+      setPreviewError((value) =>
+        value?.startsWith("Redraw preview is not available") ? value : null,
+      );
       setPreviewDocumentReady(false);
       await cleanupPreviewDocument();
 
@@ -116,7 +136,6 @@ export function PreviewModal() {
       workerRef.current = worker;
 
       worker.onmessage = async (event: MessageEvent<ExportWorkerResponse>) => {
-        // Discard responses from stale / cancelled builds
         if (cancelled || event.data.generation !== buildGeneration) {
           worker.terminate();
           return;
@@ -284,6 +303,13 @@ export function PreviewModal() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
+          {redrawBlocked ? (
+            <div className="w-full rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
+              Rotated cropped pages detected on page {rotatedCroppedPages.length > 1 ? "s" : ""}{" "}
+              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join(", ")}. `Redraw`
+              preview is disabled for this selection.
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => setPreviewMode("crop-box")}
@@ -297,12 +323,18 @@ export function PreviewModal() {
           </button>
           <button
             type="button"
-            onClick={() => setPreviewMode("redraw")}
+            onClick={() => {
+              if (redrawBlocked) {
+                return;
+              }
+              setPreviewMode("redraw");
+            }}
+            disabled={redrawBlocked}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               previewMode === "redraw"
                 ? "bg-ink text-white"
                 : "border border-ink/10 bg-white/80 text-ink hover:border-ink/20"
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-50`}
           >
             Redraw
           </button>

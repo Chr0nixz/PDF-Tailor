@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import type { CropRect, PageCropState, WorkerExportPayload } from "@/types";
+import { isQuarterTurnRotation } from "@/utils/documentWarnings";
 
 function getValidCropRect(pageCrop: PageCropState | undefined): CropRect | null {
   const cropRect = pageCrop?.cropRect;
@@ -40,11 +41,18 @@ async function exportWithRedraw(payload: WorkerExportPayload) {
 
   for (let pageIndex = 0; pageIndex < sourcePages.length; pageIndex += 1) {
     const cropRect = getValidCropRect(payload.pageCrops[pageIndex]);
+    const rotation = sourcePages[pageIndex]?.getRotation().angle ?? 0;
 
     if (!cropRect) {
       const [copiedPage] = await outputDoc.copyPages(sourceDoc, [pageIndex]);
       outputDoc.addPage(copiedPage);
       continue;
+    }
+
+    if (isQuarterTurnRotation(rotation)) {
+      throw new Error(
+        `Redraw export does not support cropped rotated pages yet (page ${pageIndex + 1}). Use Crop box mode instead.`,
+      );
     }
 
     const embeddedPage = await outputDoc.embedPage(sourcePages[pageIndex], {

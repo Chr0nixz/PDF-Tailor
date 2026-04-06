@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { degrees, PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { exportPdf } from "@/utils/pdfOperations";
 import type { PageCropState, WorkerExportPayload } from "@/types";
@@ -43,6 +43,13 @@ async function createSourcePdf() {
     color: rgb(0.2, 0.3, 0.1),
   });
 
+  return new Uint8Array(await pdfDoc.save());
+}
+
+async function createRotatedSourcePdf() {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([400, 600]);
+  page.setRotation(degrees(90));
   return new Uint8Array(await pdfDoc.save());
 }
 
@@ -133,5 +140,25 @@ describe("pdfOperations", () => {
     });
 
     await expect(exportPdf(payload)).rejects.toThrow("Invalid crop size on page 1.");
+  });
+
+  it("rejects redraw exports for cropped rotated pages", async () => {
+    const payload: WorkerExportPayload = {
+      fileBuffer: await createRotatedSourcePdf(),
+      exportMode: "redraw",
+      pageCrops: {
+        0: createPageCrop(0, {
+          pageIndex: 0,
+          x: 20,
+          y: 30,
+          width: 120,
+          height: 180,
+        }),
+      },
+    };
+
+    await expect(exportPdf(payload)).rejects.toThrow(
+      "Redraw export does not support cropped rotated pages yet (page 1). Use Crop box mode instead.",
+    );
   });
 });

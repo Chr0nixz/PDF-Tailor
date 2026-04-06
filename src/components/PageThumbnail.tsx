@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, type MouseEvent } from "react";
+import { isQuarterTurnRotation, normalizeRotation } from "@/utils/documentWarnings";
 import type { PageMetadata } from "@/types";
 
 interface PageThumbnailProps {
@@ -24,6 +25,7 @@ export const PageThumbnail = memo(function PageThumbnail({
   onVisible,
 }: PageThumbnailProps) {
   const ref = useRef<HTMLButtonElement | null>(null);
+  const showRotation = isQuarterTurnRotation(page.rotation);
 
   useEffect(() => {
     const element = ref.current;
@@ -59,6 +61,11 @@ export const PageThumbnail = memo(function PageThumbnail({
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold">Page {page.pageIndex + 1}</div>
         <div className="flex items-center gap-2">
+          {showRotation ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-900">
+              {normalizeRotation(page.rotation)}°
+            </span>
+          ) : null}
           {hasCrop ? (
             <span className="rounded-full bg-ember/15 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-ember">
               Crop
