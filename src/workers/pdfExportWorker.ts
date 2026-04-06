@@ -12,10 +12,12 @@ worker.onmessage = async (event: MessageEvent<ExportWorkerRequest>) => {
 
   try {
     const fileBuffer = await exportPdf(event.data.payload);
+    const generation = event.data.generation;
 
     const response: ExportWorkerResponse = {
       type: "EXPORT_SUCCESS",
       payload: { fileBuffer },
+      generation,
     };
 
     worker.postMessage(response, [fileBuffer.buffer as ArrayBuffer]);
@@ -25,6 +27,7 @@ worker.onmessage = async (event: MessageEvent<ExportWorkerRequest>) => {
       payload: {
         message: error instanceof Error ? error.message : "Unknown export error",
       },
+      generation: event.data.generation,
     };
 
     worker.postMessage(response);

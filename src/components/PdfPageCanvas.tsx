@@ -22,6 +22,8 @@ export function PdfPageCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const pageRef = useRef<PDFPageProxy | null>(null);
+  // Cache page instance to avoid cleanup+re-fetch on zoom changes
+  const cachedPageKey = useRef<string | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [renderState, setRenderState] = useState<"loading" | "ready" | "error">("loading");
 
@@ -38,18 +40,37 @@ export function PdfPageCanvas({
       setRenderState("loading");
 
       renderTaskRef.current?.cancel();
-      pageRef.current?.cleanup();
 
-      try {
-        const page = await documentProxy.getPage(pageIndex + 1);
+      // Only cleanup and re-fetch page if key (doc+index) changed
+      const pageKey = `${pageIndex}`;
+      if (cachedPageKey.current !== pageKey || !pageRef.current) {
+        pageRef.current?.cleanup();
+        pageRef.current = null;
+        cachedPageKey.current = null;
 
-        if (cancelled) {
-          page.cleanup();
+        try {
+          const page = await documentProxy.getPage(pageIndex + 1);
+
+          if (cancelled) {
+            page.cleanup();
+            return;
+          }
+
+          pageRef.current = page;
+          cachedPageKey.current = pageKey;
+        } catch (error) {
+          if (cancelled) return;
+          setRenderState("error");
           return;
         }
+      }
 
-        pageRef.current = page;
+      const page = pageRef.current;
+      if (!page) {
+        return;
+      }
 
+      try {
         const viewport = page.getViewport({ scale: zoom });
         const outputScale = window.devicePixelRatio || 1;
         const context = canvas.getContext("2d");

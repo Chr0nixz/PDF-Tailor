@@ -71,7 +71,7 @@ export function Header() {
       <div className="flex items-center gap-4">
         <div className="rounded-[20px] bg-ink px-4 py-3 text-white">
           <div className="text-xs uppercase tracking-[0.24em] text-white/60">PDF-Tailor</div>
-          <div className="mt-1 text-lg font-semibold">Phase 7</div>
+          <div className="mt-1 text-lg font-semibold">v1.0</div>
         </div>
         <div>
           <div className="text-sm font-medium text-ink/55">Current document</div>

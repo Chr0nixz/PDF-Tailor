@@ -1,4 +1,4 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { memo, type PointerEvent as ReactPointerEvent } from "react";
 import { pdfRectToCanvasRect, pdfToCanvasPoint, type ViewportMetrics } from "@/utils/coordinates";
 import type { CropHandle, CropRect, SnapGuide } from "@/types";
 
@@ -25,7 +25,7 @@ const HANDLE_POSITIONS: Array<{
   { handle: "w", className: "-left-2.5 top-1/2 -translate-y-1/2", cursor: "cursor-ew-resize" },
 ];
 
-export function CropRectangle({
+export const CropRectangle = memo(function CropRectangle({
   cropRect,
   viewport,
   snapGuides,
@@ -33,40 +33,9 @@ export function CropRectangle({
   onResizeStart,
 }: CropRectangleProps) {
   const canvasRect = pdfRectToCanvasRect(cropRect, viewport);
-  const top = canvasRect.y;
-  const left = canvasRect.x;
-  const right = canvasRect.x + canvasRect.width;
-  const bottom = canvasRect.y + canvasRect.height;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
-      <div
-        className="absolute left-0 right-0 top-0 bg-ink/20"
-        style={{ height: `${top}px` }}
-      />
-      <div
-        className="absolute bottom-0 left-0 right-0 bg-ink/20"
-        style={{ height: `${Math.max(0, viewport.pageHeightPt * viewport.scale - bottom)}px` }}
-      />
-      <div
-        className="absolute bg-ink/20"
-        style={{
-          left: 0,
-          top: `${top}px`,
-          width: `${left}px`,
-          height: `${canvasRect.height}px`,
-        }}
-      />
-      <div
-        className="absolute bg-ink/20"
-        style={{
-          left: `${right}px`,
-          top: `${top}px`,
-          width: `${Math.max(0, viewport.pageWidthPt * viewport.scale - right)}px`,
-          height: `${canvasRect.height}px`,
-        }}
-      />
-
       {snapGuides.map((guide) => {
         if (guide.orientation === "vertical") {
           const point = pdfToCanvasPoint({ x: guide.position, y: 0 }, viewport);
@@ -99,6 +68,7 @@ export function CropRectangle({
           top: `${canvasRect.y}px`,
           width: `${canvasRect.width}px`,
           height: `${canvasRect.height}px`,
+          boxShadow: "0 0 0 9999px rgba(24, 34, 48, 0.2)",
         }}
       >
         <div className="absolute inset-0 cursor-move rounded-[16px]" />
@@ -112,4 +82,4 @@ export function CropRectangle({
       </div>
     </div>
   );
-}
+});

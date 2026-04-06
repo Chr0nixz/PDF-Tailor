@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import type { MouseEvent } from "react";
+import { memo, useEffect, useRef, type MouseEvent } from "react";
 import type { PageMetadata } from "@/types";
 
 interface PageThumbnailProps {
@@ -15,7 +14,7 @@ interface PageThumbnailProps {
   onVisible: (pageIndex: number) => void;
 }
 
-export function PageThumbnail({
+export const PageThumbnail = memo(function PageThumbnail({
   page,
   isActive,
   isSelected,
@@ -98,4 +97,4 @@ export function PageThumbnail({
       </div>
     </button>
   );
-}
+});

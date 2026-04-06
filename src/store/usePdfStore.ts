@@ -39,6 +39,7 @@ interface PdfStoreState {
   activeDragState: DragState;
   draftCropRect: CropRect | null;
   activeSnapGuides: SnapGuide[];
+  clipboard: PageCropState | null;
   previewOpen: boolean;
   exportDialogOpen: boolean;
   exportInProgress: boolean;
@@ -100,6 +101,14 @@ interface PdfStoreState {
   setExportDialogOpen: (open: boolean) => void;
   setExportInProgress: (value: boolean) => void;
   setErrorMessage: (message: string | null) => void;
+  clearPageCrop: (pageIndex: number) => void;
+  copyCrop: (pageIndex: number) => void;
+  pasteCropToPages: (targetPageIndices: number[]) => void;
+  nudgeCrop: (pageIndex: number, dx: number, dy: number) => void;
+  selectAllPages: () => void;
+  goToPrevPage: () => void;
+  goToNextPage: () => void;
+  clearDraftCrop: () => void;
 }
 
 const createEmptyPageCrop = (pageIndex: number): PageCropState => ({
@@ -139,6 +148,7 @@ const initialState = {
   },
   draftCropRect: null as CropRect | null,
   activeSnapGuides: [] as SnapGuide[],
+  clipboard: null as PageCropState | null,
   previewOpen: false,
   exportDialogOpen: false,
   exportInProgress: false,
@@ -430,4 +440,161 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
   setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
   setExportInProgress: (exportInProgress) => set({ exportInProgress }),
   setErrorMessage: (errorMessage) => set({ errorMessage }),
+  clearPageCrop: (pageIndex) =>
+    set((state) => {
+      const current = state.pageCrops[pageIndex];
+      if (!current?.cropRect) {
+        return state;
+      }
+
+      const nextPageCrops = { ...state.pageCrops };
+      delete nextPageCrops[pageIndex];
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }),
+  copyCrop: (pageIndex) =>
+    set((state) => {
+      const current = state.pageCrops[pageIndex];
+      if (!current?.cropRect) {
+        return state;
+      }
+      return { clipboard: structuredClone(current) };
+    }),
+  pasteCropToPages: (targetPageIndices) =>
+    set((state) => {
+      const { clipboard } = state;
+      if (!clipboard?.cropRect || targetPageIndices.length === 0) {
+        return state;
+      }
+
+      const nextPageCrops = { ...state.pageCrops };
+
+      for (const pageIndex of targetPageIndices) {
+        const page = state.pages.find((item) => item.pageIndex === pageIndex);
+        if (!page) continue;
+
+        const sourceRect = clipboard.cropRect!;
+        const sourcePage = state.pages.find(
+          (item) => item.pageIndex === clipboard.pageIndex,
+        );
+
+        let nextCropRect: CropRect;
+        if (sourcePage) {
+          const scaleX = page.widthPt / sourcePage.widthPt;
+          const scaleY = page.heightPt / sourcePage.heightPt;
+
+          nextCropRect = {
+            pageIndex,
+            x: sourceRect.x * scaleX,
+            y: sourceRect.y * scaleY,
+            width: sourceRect.width * scaleX,
+            height: sourceRect.height * scaleY,
+          };
+        } else {
+          nextCropRect = {
+            ...sourceRect,
+            pageIndex,
+          };
+        }
+
+        nextPageCrops[pageIndex] = {
+          ...(state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex)),
+          cropRect: nextCropRect,
+          mode: clipboard.mode,
+          presetSizeId: clipboard.presetSizeId,
+          presetAnchor: clipboard.presetAnchor,
+          marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
+          updatedAt: Date.now(),
+        };
+      }
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }),
+  nudgeCrop: (pageIndex, dx, dy) =>
+    set((state) => {
+      const current = state.pageCrops[pageIndex];
+      if (!current?.cropRect) {
+        return state;
+      }
+
+      const page = state.pages.find((item) => item.pageIndex === pageIndex);
+      if (!page) return state;
+
+      const rect = current.cropRect;
+      const clamped = clampCropRect(
+        {
+          pageIndex,
+          x: rect.x + dx,
+          y: rect.y - dy, // PDF y goes bottom-to-top, invert dy for screen intuition
+          width: rect.width,
+          height: rect.height,
+        },
+        page.widthPt,
+        page.heightPt,
+      );
+
+      const marginsPt = cropRectToMargins(clamped, page.widthPt, page.heightPt);
+
+      return {
+        pageCrops: {
+          ...state.pageCrops,
+          [pageIndex]: {
+            ...current,
+            cropRect: clamped,
+            marginsPt,
+            mode: "free" as CropMode,
+            presetSizeId: undefined,
+            presetAnchor: undefined,
+            updatedAt: Date.now(),
+          },
+        },
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }),
+  selectAllPages: () =>
+    set((state) => ({
+      selectedPageIndices: Array.from({ length: state.pageCount }, (_, i) => i),
+    })),
+  goToPrevPage: () =>
+    set((state) => ({
+      currentPageIndex: Math.max(0, state.currentPageIndex - 1),
+      selectedPageIndices: [Math.max(0, state.currentPageIndex - 1)],
+    })),
+  goToNextPage: () =>
+    set((state) => ({
+      currentPageIndex: Math.min(state.pageCount - 1, state.currentPageIndex + 1),
+      selectedPageIndices: [Math.min(state.pageCount - 1, state.currentPageIndex + 1)],
+    })),
+  clearDraftCrop: () =>
+    set({
+      activeDragState: {
+        pageIndex: null,
+        action: null,
+        handle: null,
+      },
+      draftCropRect: null,
+      activeSnapGuides: [],
+    }),
 }));
+
+function clampCropRect(
+  rect: CropRect,
+  pageWidthPt: number,
+  pageHeightPt: number,
+): CropRect {
+  const minSize = 12;
+  const x = Math.max(0, Math.min(rect.x, pageWidthPt - minSize));
+  const y = Math.max(0, Math.min(rect.y, pageHeightPt - minSize));
+  const width = Math.max(minSize, Math.min(rect.width, pageWidthPt - x));
+  const height = Math.max(minSize, Math.min(rect.height, pageHeightPt - y));
+  return { ...rect, x, y, width, height };
+}

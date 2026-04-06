@@ -22,10 +22,13 @@ export function PreviewModal() {
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const previewDocumentRef = useRef<PDFDocumentProxy | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  const previewGenerationRef = useRef(0);
 
   const [previewMode, setPreviewMode] = useState<ExportMode>("crop-box");
   const [previewPageIndex, setPreviewPageIndex] = useState(currentPageIndex);
   const [pageCount, setPageCount] = useState(0);
+  const [previewDocumentReady, setPreviewDocumentReady] = useState(false);
+  const [previewGeneration, setPreviewGeneration] = useState(0);
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -43,6 +46,8 @@ export function PreviewModal() {
     setPreviewMode("crop-box");
     setPreviewPageIndex(currentPageIndex);
     setPreviewError(null);
+    setPreviewDocumentReady(false);
+    setPreviewGeneration(0);
   }, [previewOpen, currentPageIndex]);
 
   useEffect(() => {
@@ -91,8 +96,14 @@ export function PreviewModal() {
         return;
       }
 
+      // Capture generation at build start — responses for stale generations are discarded
+      const buildGeneration = previewGenerationRef.current + 1;
+      previewGenerationRef.current = buildGeneration;
+      setPreviewGeneration(buildGeneration);
+
       setLoading(true);
       setPreviewError(null);
+      setPreviewDocumentReady(false);
       await cleanupPreviewDocument();
 
       workerRef.current?.terminate();
@@ -105,7 +116,8 @@ export function PreviewModal() {
       workerRef.current = worker;
 
       worker.onmessage = async (event: MessageEvent<ExportWorkerResponse>) => {
-        if (cancelled) {
+        // Discard responses from stale / cancelled builds
+        if (cancelled || event.data.generation !== buildGeneration) {
           worker.terminate();
           return;
         }
@@ -136,6 +148,7 @@ export function PreviewModal() {
           previewDocumentRef.current = previewDocument;
           setPageCount(previewDocument.numPages);
           setPreviewPageIndex((value) => Math.min(value, previewDocument.numPages - 1));
+          setPreviewDocumentReady(true);
           setLoading(false);
         } catch (error) {
           setLoading(false);
@@ -157,6 +170,7 @@ export function PreviewModal() {
           pageCrops,
           exportMode: previewMode,
         },
+        generation: buildGeneration,
       });
     };
 
@@ -239,7 +253,7 @@ export function PreviewModal() {
       renderTaskRef.current?.cancel();
       renderTaskRef.current = null;
     };
-  }, [previewOpen, previewPageIndex, pageCount]);
+  }, [previewOpen, previewPageIndex, pageCount, previewDocumentReady]);
 
   if (!previewOpen) {
     return null;

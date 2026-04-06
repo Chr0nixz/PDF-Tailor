@@ -16,10 +16,15 @@ export function useThumbnails(
   pages: PageMetadata[],
 ) {
   const [thumbnails, setThumbnails] = useState<ThumbnailMap>({});
+  const thumbnailsRef = useRef<ThumbnailMap>({});
   const inflightRef = useRef<Set<number>>(new Set());
+
+  // Keep ref in sync with state
+  thumbnailsRef.current = thumbnails;
 
   useEffect(() => {
     inflightRef.current.clear();
+    thumbnailsRef.current = {};
     setThumbnails({});
   }, [documentProxy, pages.length]);
 
@@ -33,7 +38,7 @@ export function useThumbnails(
         return;
       }
 
-      const existing = thumbnails[pageIndex];
+      const existing = thumbnailsRef.current[pageIndex];
       if (existing?.status === "ready" || existing?.status === "loading") {
         return;
       }
@@ -91,7 +96,7 @@ export function useThumbnails(
         inflightRef.current.delete(pageIndex);
       }
     },
-    [documentProxy, thumbnails],
+    [documentProxy],
   );
 
   return {

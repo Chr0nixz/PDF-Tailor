@@ -25,23 +25,34 @@ function getDocumentErrorMessage(error: unknown) {
 }
 
 async function readPageMetadata(document: PDFDocumentProxy): Promise<PageMetadata[]> {
-  const pages: PageMetadata[] = [];
+  const numPages = document.numPages;
+  const pages = new Array<PageMetadata>(numPages);
 
-  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    const page = await document.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1 });
-
-    pages.push({
-      pageIndex: pageNumber - 1,
-      widthPt: viewport.width,
-      heightPt: viewport.height,
-      rotation: page.rotate,
+  // Process in batches of 5 to parallelize loading without overwhelming pdf.js.
+  const batchSize = 5;
+  for (let batchStart = 1; batchStart <= numPages; batchStart += batchSize) {
+    const batchEnd = Math.min(batchStart + batchSize, numPages);
+    const batchPromises = Array.from({ length: batchEnd - batchStart + 1 }, async (_, i) => {
+      const pageNumber = batchStart + i;
+      const page = await document.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      const meta: PageMetadata = {
+        pageIndex: pageNumber - 1,
+        widthPt: viewport.width,
+        heightPt: viewport.height,
+        rotation: page.rotate,
+      };
+      page.cleanup();
+      return meta;
     });
 
-    page.cleanup();
+    const batchResults = await Promise.all(batchPromises);
+    for (let i = 0; i < batchResults.length; i++) {
+      pages[batchStart - 1 + i] = batchResults[i];
+    }
   }
 
-  return pages;
+  return pages as PageMetadata[];
 }
 
 export function usePdfRenderer() {

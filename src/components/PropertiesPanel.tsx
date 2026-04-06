@@ -52,6 +52,7 @@ export function PropertiesPanel() {
   const setPageCropRect = usePdfStore((state) => state.setPageCropRect);
   const pushHistoryCheckpoint = usePdfStore((state) => state.pushHistoryCheckpoint);
   const applyCropToPages = usePdfStore((state) => state.applyCropToPages);
+  const clearPageCrop = usePdfStore((state) => state.clearPageCrop);
 
   const currentCrop = selectCurrentPageCrop(
     currentPageIndex,
@@ -262,10 +263,18 @@ export function PropertiesPanel() {
 
       <div className="mt-4 rounded-[24px] border border-dashed border-ink/12 bg-panel px-4 py-4 text-sm leading-6 text-ink/65">
         Preset paper sizes, 9-point positioning, and numeric margin editing are
-        live. Batch apply remains disabled until the multi-page stage.
+        live. Use "Apply to selected" or "Apply to all" to batch-apply crops.
       </div>
 
       <div className="mt-auto grid gap-3 pt-4">
+        <button
+          type="button"
+          disabled={!cropRect}
+          onClick={() => clearPageCrop(currentPageIndex)}
+          className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+        >
+          Clear current page crop
+        </button>
         <button
           type="button"
           disabled={!cropRect || selectedTargets.length === 0}
