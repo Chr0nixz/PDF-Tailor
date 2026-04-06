@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { degrees, PDFDocument, StandardFonts } from "pdf-lib";
 
@@ -20,6 +21,27 @@ async function createSamplePdf() {
     size: 20,
     font,
   });
+
+  return Buffer.from(await pdfDoc.save());
+}
+
+async function createThreePagePdf() {
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  for (const [index, width, height] of [
+    [0, 400, 600],
+    [1, 420, 620],
+    [2, 440, 640],
+  ] as const) {
+    const nextPage = pdfDoc.addPage([width, height]);
+    nextPage.drawText(`Page ${index + 1}`, {
+      x: 24,
+      y: height - 40,
+      size: 20,
+      font,
+    });
+  }
 
   return Buffer.from(await pdfDoc.save());
 }
@@ -131,4 +153,51 @@ test("blocks redraw preview and export for cropped rotated pages", async ({ page
   await page.getByTestId("export-dialog").getByRole("button", { name: "Export PDF" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("rotated-crop-box.pdf");
+});
+
+test("selects a page range and clears crops in bulk", async ({ page }) => {
+  await uploadPdf(page, "three-pages.pdf", await createThreePagePdf());
+
+  await expect(page.getByText("three-pages.pdf")).toBeVisible();
+  await expect(page.getByText("3 pages loaded")).toBeVisible();
+
+  await createCropSelection(page);
+  await page.getByRole("button", { name: /apply to all pages \(3\)/i }).click();
+
+  await page.getByPlaceholder("1-5, 8, 10-12").fill("2-3");
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await expect(page.getByText("2 selected")).toBeVisible();
+  await page.getByRole("button", { name: /clear crops on selected pages \(2\)/i }).click();
+
+  await page.getByRole("button", { name: /page 2/i }).click();
+  await expect(page.getByTestId("crop-rectangle")).toBeHidden();
+
+  await page.getByRole("button", { name: /page 1/i }).click();
+  await expect(page.getByTestId("crop-rectangle")).toBeVisible();
+});
+
+test("exports only the selected pages when export range is scoped", async ({ page }) => {
+  await uploadPdf(page, "three-pages.pdf", await createThreePagePdf());
+
+  await page.getByPlaceholder("1-5, 8, 10-12").fill("2-3");
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export" }).click();
+  await page
+    .getByTestId("export-dialog")
+    .getByRole("button", { name: /selected pages/i })
+    .click();
+  await page.getByTestId("export-dialog").getByRole("button", { name: "Export PDF" }).click();
+
+  const download = await downloadPromise;
+  const downloadPath = await download.path();
+
+  if (!downloadPath) {
+    throw new Error("Download path is unavailable.");
+  }
+
+  const bytes = await readFile(downloadPath);
+  const exportedPdf = await PDFDocument.load(bytes);
+  expect(exportedPdf.getPageCount()).toBe(2);
 });

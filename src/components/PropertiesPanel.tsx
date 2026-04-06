@@ -42,6 +42,9 @@ export function PropertiesPanel() {
   const currentPageIndex = usePdfStore((state) => state.currentPageIndex);
   const displayUnit = usePdfStore((state) => state.displayUnit);
   const setDisplayUnit = usePdfStore((state) => state.setDisplayUnit);
+  const preferredPresetSizeId = usePdfStore((state) => state.preferredPresetSizeId);
+  const preferredPresetAnchor = usePdfStore((state) => state.preferredPresetAnchor);
+  const setPreferredPreset = usePdfStore((state) => state.setPreferredPreset);
   const documentLoadState = usePdfStore((state) => state.documentLoadState);
   const pages = usePdfStore((state) => state.pages);
   const selectedPageIndices = usePdfStore((state) => state.selectedPageIndices);
@@ -53,6 +56,12 @@ export function PropertiesPanel() {
   const pushHistoryCheckpoint = usePdfStore((state) => state.pushHistoryCheckpoint);
   const applyCropToPages = usePdfStore((state) => state.applyCropToPages);
   const clearPageCrop = usePdfStore((state) => state.clearPageCrop);
+  const templates = usePdfStore((state) => state.templates);
+  const selectedTemplateId = usePdfStore((state) => state.selectedTemplateId);
+  const saveTemplateFromPage = usePdfStore((state) => state.saveTemplateFromPage);
+  const selectTemplate = usePdfStore((state) => state.selectTemplate);
+  const deleteTemplate = usePdfStore((state) => state.deleteTemplate);
+  const applyTemplateToPages = usePdfStore((state) => state.applyTemplateToPages);
 
   const currentCrop = selectCurrentPageCrop(
     currentPageIndex,
@@ -69,14 +78,17 @@ export function PropertiesPanel() {
   );
   const page = pages.find((item) => item.pageIndex === currentPageIndex) ?? null;
   const mode: CropMode = currentCrop?.mode ?? "free";
-  const presetSizeId = currentCrop?.presetSizeId ?? "a4";
-  const presetAnchor = currentCrop?.presetAnchor ?? "center";
+  const presetSizeId = currentCrop?.presetSizeId ?? preferredPresetSizeId;
+  const presetAnchor = currentCrop?.presetAnchor ?? preferredPresetAnchor;
   const cropRect = currentCrop?.cropRect ?? null;
   const selectedTargets = selectedPageIndices.length > 0 ? selectedPageIndices : [currentPageIndex];
+  const selectedTemplate =
+    templates.find((template) => template.id === selectedTemplateId) ?? null;
   const marginSessionRef = useRef(false);
   const [marginValues, setMarginValues] = useState(() =>
     createInputValues(margins, displayUnit),
   );
+  const [templateName, setTemplateName] = useState("Template 1");
 
   const formatDisplayValue = (valuePt: number) =>
     formatUnit(toDisplayUnit(valuePt, displayUnit));
@@ -92,6 +104,10 @@ export function PropertiesPanel() {
     margins.bottom,
     margins.left,
   ]);
+
+  useEffect(() => {
+    setTemplateName(selectedTemplate?.name ?? `Template ${templates.length + 1}`);
+  }, [selectedTemplate?.id, selectedTemplate?.name, templates.length]);
 
   const parseMarginValues = useMemo(
     () =>
@@ -125,6 +141,7 @@ export function PropertiesPanel() {
       return;
     }
 
+    setPreferredPreset(sizeId, anchor);
     const nextRect = createPresetCropRect(
       size,
       page.widthPt,
@@ -138,6 +155,23 @@ export function PropertiesPanel() {
       presetSizeId: sizeId,
       presetAnchor: anchor,
     });
+  };
+
+  const handleSaveTemplate = () => {
+    const savedId = saveTemplateFromPage(
+      currentPageIndex,
+      templateName,
+      selectedTemplate?.id ?? null,
+    );
+
+    if (savedId) {
+      selectTemplate(savedId);
+    }
+  };
+
+  const handleCreateTemplate = () => {
+    selectTemplate(null);
+    setTemplateName(`Template ${templates.length + 1}`);
   };
 
   const handleModeChange = (nextMode: CropMode) => {
@@ -242,6 +276,86 @@ export function PropertiesPanel() {
             value={presetAnchor}
             onChange={(nextValue) => applyPreset(presetSizeId, nextValue)}
           />
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-xs uppercase tracking-[0.18em] text-ink/45">Templates</div>
+          <button
+            type="button"
+            onClick={handleCreateTemplate}
+            className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink transition hover:border-ink/20"
+          >
+            New
+          </button>
+        </div>
+        <div className="space-y-3">
+          <label className="block">
+            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
+              Saved template
+            </div>
+            <select
+              value={selectedTemplateId ?? ""}
+              onChange={(event) => selectTemplate(event.target.value || null)}
+              className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
+            >
+              <option value="">New template</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">Name</div>
+            <input
+              value={templateName}
+              onChange={(event) => setTemplateName(event.target.value)}
+              placeholder="Template name"
+              className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
+            />
+          </label>
+          <div className="grid gap-3">
+            <button
+              type="button"
+              onClick={handleSaveTemplate}
+              disabled={!cropRect}
+              className="rounded-full bg-ink px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {selectedTemplate ? "Update selected template" : "Save as template"}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                selectedTemplateId && applyTemplateToPages(selectedTemplateId, [currentPageIndex])
+              }
+              disabled={!selectedTemplateId || !page}
+              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+            >
+              Apply template to current page
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                selectedTemplateId &&
+                applyTemplateToPages(selectedTemplateId, selectedTargets)
+              }
+              disabled={!selectedTemplateId || selectedTargets.length === 0}
+              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+            >
+              Apply template to selected pages ({selectedTargets.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => selectedTemplateId && deleteTemplate(selectedTemplateId)}
+              disabled={!selectedTemplateId}
+              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
+            >
+              Delete selected template
+            </button>
+          </div>
         </div>
       </div>
 

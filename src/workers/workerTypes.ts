@@ -8,6 +8,15 @@ export type ExportWorkerRequest = {
 
 export type ExportWorkerResponse =
   | {
+      type: "EXPORT_PROGRESS";
+      payload: {
+        completedPages: number;
+        totalPages: number;
+        stage: "processing" | "saving";
+      };
+      generation: number;
+    }
+  | {
       type: "EXPORT_SUCCESS";
       payload: { fileBuffer: Uint8Array };
       generation: number;

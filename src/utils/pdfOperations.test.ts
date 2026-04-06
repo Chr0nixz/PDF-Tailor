@@ -128,6 +128,51 @@ describe("pdfOperations", () => {
     expect(pages[1].getSize()).toEqual({ width: 500, height: 700 });
   });
 
+  it("exports only the requested page subset in crop-box mode", async () => {
+    const payload = await buildPayload("crop-box", {
+      1: createPageCrop(1, {
+        pageIndex: 1,
+        x: 30,
+        y: 40,
+        width: 200,
+        height: 260,
+      }),
+    });
+    payload.exportPageIndices = [1];
+
+    const exported = await exportPdf(payload);
+    const document = await PDFDocument.load(exported);
+    const pages = document.getPages();
+
+    expect(pages).toHaveLength(1);
+    expect(pages[0].getCropBox()).toMatchObject({
+      x: 30,
+      y: 40,
+      width: 200,
+      height: 260,
+    });
+  });
+
+  it("exports only the requested page subset in redraw mode", async () => {
+    const payload = await buildPayload("redraw", {
+      1: createPageCrop(1, {
+        pageIndex: 1,
+        x: 60,
+        y: 50,
+        width: 210,
+        height: 280,
+      }),
+    });
+    payload.exportPageIndices = [1];
+
+    const exported = await exportPdf(payload);
+    const document = await PDFDocument.load(exported);
+    const pages = document.getPages();
+
+    expect(pages).toHaveLength(1);
+    expect(pages[0].getSize()).toEqual({ width: 210, height: 280 });
+  });
+
   it("rejects invalid crop rectangles", async () => {
     const payload = await buildPayload("redraw", {
       0: createPageCrop(0, {

@@ -4,6 +4,8 @@ export type CropMode = "free" | "preset";
 
 export type ExportMode = "crop-box" | "redraw";
 
+export type ExportScope = "current" | "selected" | "all";
+
 export type DocumentLoadState = "idle" | "loading" | "ready" | "error";
 
 export type CropHandle =
@@ -77,8 +79,20 @@ export interface PageCropState {
   updatedAt: number;
 }
 
+export interface CropTemplate {
+  id: string;
+  name: string;
+  mode: CropMode;
+  presetSizeId?: string;
+  presetAnchor?: PresetAnchor;
+  marginsRatio: PageMargins;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface WorkerExportPayload {
   fileBuffer: Uint8Array;
   pageCrops: Record<number, PageCropState>;
   exportMode: ExportMode;
+  exportPageIndices?: number[];
 }

@@ -1,6 +1,17 @@
 import { create } from "zustand";
-import { cropRectToMargins } from "@/utils/coordinates";
+import {
+  createPresetCropRect,
+  cropRectToMargins,
+  marginsToCropRect,
+} from "@/utils/coordinates";
+import { findPaperSize } from "@/utils/paperSizes";
+import {
+  loadPersistedPreferences,
+  savePersistedPreferences,
+  type PersistedPreferences,
+} from "@/utils/persistence";
 import type {
+  CropTemplate,
   CropHandle,
   CropInteraction,
   CropMode,
@@ -31,15 +42,20 @@ interface PdfStoreState {
   pages: PageMetadata[];
   currentPageIndex: number;
   selectedPageIndices: number[];
+  selectionAnchorPageIndex: number | null;
   zoom: number;
   documentLoadState: DocumentLoadState;
   documentLoadProgress: number | null;
   displayUnit: PdfUnit;
+  preferredPresetSizeId: string;
+  preferredPresetAnchor: PresetAnchor;
   pageCrops: Record<number, PageCropState>;
   activeDragState: DragState;
   draftCropRect: CropRect | null;
   activeSnapGuides: SnapGuide[];
   clipboard: PageCropState | null;
+  templates: CropTemplate[];
+  selectedTemplateId: string | null;
   previewOpen: boolean;
   exportDialogOpen: boolean;
   exportInProgress: boolean;
@@ -56,13 +72,22 @@ interface PdfStoreState {
   clearDocument: () => void;
   setPages: (pages: PageMetadata[]) => void;
   setCurrentPage: (pageIndex: number) => void;
-  toggleSelectedPage: (pageIndex: number, multiSelect?: boolean) => void;
+  toggleSelectedPage: (
+    pageIndex: number,
+    multiSelect?: boolean,
+    rangeSelect?: boolean,
+  ) => void;
+  setSelectedPages: (
+    pageIndices: number[],
+    options?: { currentPageIndex?: number; anchorPageIndex?: number | null },
+  ) => void;
   setZoom: (zoom: number) => void;
   setDocumentLoadState: (
     state: DocumentLoadState,
     progress?: number | null,
   ) => void;
   setDisplayUnit: (unit: PdfUnit) => void;
+  setPreferredPreset: (presetSizeId: string, presetAnchor: PresetAnchor) => void;
   upsertPageCrop: (
     pageIndex: number,
     patch: Partial<PageCropState>,
@@ -102,8 +127,17 @@ interface PdfStoreState {
   setExportInProgress: (value: boolean) => void;
   setErrorMessage: (message: string | null) => void;
   clearPageCrop: (pageIndex: number) => void;
+  clearPageCrops: (pageIndices: number[]) => void;
   copyCrop: (pageIndex: number) => void;
   pasteCropToPages: (targetPageIndices: number[]) => void;
+  saveTemplateFromPage: (
+    pageIndex: number,
+    name: string,
+    templateId?: string | null,
+  ) => string | null;
+  selectTemplate: (templateId: string | null) => void;
+  deleteTemplate: (templateId: string) => void;
+  applyTemplateToPages: (templateId: string, targetPageIndices: number[]) => void;
   nudgeCrop: (pageIndex: number, dx: number, dy: number) => void;
   selectAllPages: () => void;
   goToPrevPage: () => void;
@@ -128,6 +162,8 @@ const cloneHistorySnapshot = (
   pageCrops: Record<number, PageCropState>,
 ): HistorySnapshot => structuredClone(pageCrops);
 
+const persistedPreferences = loadPersistedPreferences();
+
 const initialState = {
   file: null,
   fileName: null,
@@ -136,10 +172,13 @@ const initialState = {
   pages: [],
   currentPageIndex: 0,
   selectedPageIndices: [],
+  selectionAnchorPageIndex: null as number | null,
   zoom: 1,
   documentLoadState: "idle" as DocumentLoadState,
   documentLoadProgress: null as number | null,
   displayUnit: "mm" as PdfUnit,
+  preferredPresetSizeId: "a4",
+  preferredPresetAnchor: "center" as PresetAnchor,
   pageCrops: {},
   activeDragState: {
     pageIndex: null,
@@ -149,6 +188,8 @@ const initialState = {
   draftCropRect: null as CropRect | null,
   activeSnapGuides: [] as SnapGuide[],
   clipboard: null as PageCropState | null,
+  templates: [] as CropTemplate[],
+  selectedTemplateId: null as string | null,
   previewOpen: false,
   exportDialogOpen: false,
   exportInProgress: false,
@@ -157,8 +198,133 @@ const initialState = {
   future: [] as HistorySnapshot[],
 };
 
+function createTemplateId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `template-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildTemplateName(
+  name: string,
+  templates: CropTemplate[],
+  templateId?: string | null,
+) {
+  const trimmed = name.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+
+  const existingCount = templates.filter((template) => template.id !== templateId).length;
+  return `Template ${existingCount + 1}`;
+}
+
+function persistPreferences(state: Pick<
+  PdfStoreState,
+  | "displayUnit"
+  | "zoom"
+  | "preferredPresetSizeId"
+  | "preferredPresetAnchor"
+  | "templates"
+  | "selectedTemplateId"
+>) {
+  const snapshot: PersistedPreferences = {
+    displayUnit: state.displayUnit,
+    zoom: state.zoom,
+    preferredPresetSizeId: state.preferredPresetSizeId,
+    preferredPresetAnchor: state.preferredPresetAnchor,
+    templates: state.templates,
+    selectedTemplateId: state.selectedTemplateId,
+  };
+
+  savePersistedPreferences(snapshot);
+}
+
+function buildTemplateFromPageCrop(
+  name: string,
+  page: PageMetadata,
+  pageCrop: PageCropState,
+  templateId?: string | null,
+): CropTemplate | null {
+  if (!pageCrop.cropRect) {
+    return null;
+  }
+
+  const now = Date.now();
+
+  return {
+    id: templateId ?? createTemplateId(),
+    name,
+    mode: pageCrop.mode,
+    presetSizeId: pageCrop.presetSizeId,
+    presetAnchor: pageCrop.presetAnchor,
+    marginsRatio: {
+      top: page.heightPt > 0 ? pageCrop.marginsPt.top / page.heightPt : 0,
+      right: page.widthPt > 0 ? pageCrop.marginsPt.right / page.widthPt : 0,
+      bottom: page.heightPt > 0 ? pageCrop.marginsPt.bottom / page.heightPt : 0,
+      left: page.widthPt > 0 ? pageCrop.marginsPt.left / page.widthPt : 0,
+    },
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function applyTemplateToPage(
+  template: CropTemplate,
+  page: PageMetadata,
+): PageCropState {
+  const presetSize = template.presetSizeId ? findPaperSize(template.presetSizeId) : null;
+  const nextCropRect =
+    template.mode === "preset" && presetSize
+      ? createPresetCropRect(
+          presetSize,
+          page.widthPt,
+          page.heightPt,
+          page.pageIndex,
+          template.presetAnchor ?? "center",
+        )
+      : marginsToCropRect(
+          {
+            top: template.marginsRatio.top * page.heightPt,
+            right: template.marginsRatio.right * page.widthPt,
+            bottom: template.marginsRatio.bottom * page.heightPt,
+            left: template.marginsRatio.left * page.widthPt,
+          },
+          page.widthPt,
+          page.heightPt,
+          page.pageIndex,
+        );
+
+  return {
+    pageIndex: page.pageIndex,
+    cropRect: nextCropRect,
+    mode: template.mode,
+    presetSizeId: template.mode === "preset" ? template.presetSizeId : undefined,
+    presetAnchor: template.mode === "preset" ? template.presetAnchor : undefined,
+    marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
+    updatedAt: Date.now(),
+  };
+}
+
+function normalizePageSelection(pageIndices: number[], pageCount: number) {
+  const uniqueSorted = [...new Set(pageIndices)]
+    .filter((pageIndex) => pageIndex >= 0 && pageIndex < pageCount)
+    .sort((left, right) => left - right);
+
+  return uniqueSorted;
+}
+
+function buildRangeSelection(start: number, end: number) {
+  const rangeStart = Math.min(start, end);
+  const rangeEnd = Math.max(start, end);
+
+  return Array.from({ length: rangeEnd - rangeStart + 1 }, (_, index) => rangeStart + index);
+}
+
 export const usePdfStore = create<PdfStoreState>((set, get) => ({
   ...initialState,
+  ...persistedPreferences,
   setDocument: ({ file, fileBuffer, fileName, pageCount = 0, pages = [] }) =>
     set({
       file,
@@ -168,6 +334,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       pages,
       currentPageIndex: 0,
       selectedPageIndices: [],
+      selectionAnchorPageIndex: null,
       documentLoadState: pageCount > 0 ? "ready" : "loading",
       documentLoadProgress: null,
       pageCrops: {},
@@ -178,22 +345,46 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       exportInProgress: false,
       errorMessage: null,
     }),
-  clearDocument: () => set({ ...initialState }),
+  clearDocument: () =>
+    set((state) => ({
+      ...initialState,
+      displayUnit: state.displayUnit,
+      zoom: state.zoom,
+      preferredPresetSizeId: state.preferredPresetSizeId,
+      preferredPresetAnchor: state.preferredPresetAnchor,
+      templates: state.templates,
+      selectedTemplateId: state.selectedTemplateId,
+    })),
   setPages: (pages) =>
     set({
       pages,
       pageCount: pages.length,
       selectedPageIndices: pages.length > 0 ? [0] : [],
+      selectionAnchorPageIndex: pages.length > 0 ? 0 : null,
       documentLoadState: pages.length > 0 ? "ready" : "idle",
       documentLoadProgress: null,
     }),
-  setCurrentPage: (pageIndex) => set({ currentPageIndex: pageIndex }),
-  toggleSelectedPage: (pageIndex, multiSelect = false) =>
+  setCurrentPage: (pageIndex) =>
+    set({
+      currentPageIndex: pageIndex,
+      selectionAnchorPageIndex: pageIndex,
+    }),
+  toggleSelectedPage: (pageIndex, multiSelect = false, rangeSelect = false) =>
     set((state) => {
+      if (rangeSelect) {
+        const anchor = state.selectionAnchorPageIndex ?? state.currentPageIndex ?? pageIndex;
+        return {
+          selectedPageIndices: buildRangeSelection(anchor, pageIndex),
+          currentPageIndex: pageIndex,
+          selectionAnchorPageIndex: anchor,
+        };
+      }
+
       if (!multiSelect) {
         return {
           selectedPageIndices: [pageIndex],
           currentPageIndex: pageIndex,
+          selectionAnchorPageIndex: pageIndex,
         };
       }
 
@@ -206,12 +397,43 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         selectedPageIndices:
           selectedPageIndices.length > 0 ? selectedPageIndices : [pageIndex],
         currentPageIndex: pageIndex,
+        selectionAnchorPageIndex: pageIndex,
       };
     }),
-  setZoom: (zoom) => set({ zoom }),
+  setSelectedPages: (pageIndices, options) =>
+    set((state) => {
+      const selectedPageIndices = normalizePageSelection(pageIndices, state.pageCount);
+      const fallbackCurrentPageIndex =
+        selectedPageIndices.at(-1) ?? Math.min(state.currentPageIndex, Math.max(0, state.pageCount - 1));
+      const currentPageIndex =
+        options?.currentPageIndex !== undefined
+          ? options.currentPageIndex
+          : fallbackCurrentPageIndex;
+
+      return {
+        selectedPageIndices,
+        currentPageIndex,
+        selectionAnchorPageIndex:
+          options?.anchorPageIndex !== undefined
+            ? options.anchorPageIndex
+            : selectedPageIndices[0] ?? null,
+      };
+    }),
+  setZoom: (zoom) => {
+    const nextZoom = Math.max(0.25, Math.min(3, zoom));
+    set({ zoom: nextZoom });
+    persistPreferences(get());
+  },
   setDocumentLoadState: (documentLoadState, documentLoadProgress = null) =>
     set({ documentLoadState, documentLoadProgress }),
-  setDisplayUnit: (displayUnit) => set({ displayUnit }),
+  setDisplayUnit: (displayUnit) => {
+    set({ displayUnit });
+    persistPreferences(get());
+  },
+  setPreferredPreset: (preferredPresetSizeId, preferredPresetAnchor) => {
+    set({ preferredPresetSizeId, preferredPresetAnchor });
+    persistPreferences(get());
+  },
   upsertPageCrop: (pageIndex, patch, options) =>
     set((state) => {
       const current = state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex);
@@ -277,12 +499,15 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
     }),
   setCropMode: (pageIndex, mode) =>
     get().upsertPageCrop(pageIndex, { mode }, { commitHistory: false }),
-  setPresetConfig: (pageIndex, presetSizeId, presetAnchor) =>
+  setPresetConfig: (pageIndex, presetSizeId, presetAnchor) => {
     get().upsertPageCrop(
       pageIndex,
       { presetSizeId, presetAnchor, mode: "preset" },
       { commitHistory: false },
-    ),
+    );
+    set({ preferredPresetSizeId: presetSizeId, preferredPresetAnchor: presetAnchor });
+    persistPreferences(get());
+  },
   beginCropInteraction: (pageIndex, action, handle) =>
     set((state) => ({
       activeDragState: {
@@ -456,6 +681,33 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         future: [],
       };
     }),
+  clearPageCrops: (pageIndices) =>
+    set((state) => {
+      const targets = new Set(pageIndices);
+      if (targets.size === 0) {
+        return state;
+      }
+
+      const nextPageCrops = { ...state.pageCrops };
+      let changed = false;
+
+      for (const pageIndex of targets) {
+        if (nextPageCrops[pageIndex]?.cropRect) {
+          delete nextPageCrops[pageIndex];
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        return state;
+      }
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }),
   copyCrop: (pageIndex) =>
     set((state) => {
       const current = state.pageCrops[pageIndex];
@@ -518,6 +770,100 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         future: [],
       };
     }),
+  saveTemplateFromPage: (pageIndex, name, templateId = null) => {
+    const state = get();
+    const page = state.pages.find((item) => item.pageIndex === pageIndex);
+    const pageCrop = state.pageCrops[pageIndex];
+
+    if (!page || !pageCrop?.cropRect) {
+      return null;
+    }
+
+    const nextTemplateName = buildTemplateName(name, state.templates, templateId);
+    const baseTemplate = buildTemplateFromPageCrop(
+      nextTemplateName,
+      page,
+      pageCrop,
+      templateId,
+    );
+
+    if (!baseTemplate) {
+      return null;
+    }
+
+    const previousTemplate = templateId
+      ? state.templates.find((template) => template.id === templateId)
+      : null;
+    const nextTemplate: CropTemplate = previousTemplate
+      ? {
+          ...baseTemplate,
+          id: previousTemplate.id,
+          createdAt: previousTemplate.createdAt,
+          updatedAt: Date.now(),
+        }
+      : baseTemplate;
+    const nextTemplates = previousTemplate
+      ? state.templates.map((template) =>
+          template.id === previousTemplate.id ? nextTemplate : template,
+        )
+      : [...state.templates, nextTemplate];
+
+    set({
+      templates: nextTemplates,
+      selectedTemplateId: nextTemplate.id,
+    });
+    persistPreferences(get());
+    return nextTemplate.id;
+  },
+  selectTemplate: (selectedTemplateId) => {
+    set((state) => ({
+      selectedTemplateId:
+        selectedTemplateId && state.templates.some((template) => template.id === selectedTemplateId)
+          ? selectedTemplateId
+          : null,
+    }));
+    persistPreferences(get());
+  },
+  deleteTemplate: (templateId) => {
+    set((state) => ({
+      templates: state.templates.filter((template) => template.id !== templateId),
+      selectedTemplateId: state.selectedTemplateId === templateId ? null : state.selectedTemplateId,
+    }));
+    persistPreferences(get());
+  },
+  applyTemplateToPages: (templateId, targetPageIndices) => {
+    set((state) => {
+      const template = state.templates.find((item) => item.id === templateId);
+
+      if (!template || targetPageIndices.length === 0) {
+        return state;
+      }
+
+      const nextPageCrops = { ...state.pageCrops };
+
+      for (const pageIndex of targetPageIndices) {
+        const page = state.pages.find((item) => item.pageIndex === pageIndex);
+        if (!page) {
+          continue;
+        }
+
+        nextPageCrops[pageIndex] = {
+          ...(state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex)),
+          ...applyTemplateToPage(template, page),
+        };
+      }
+
+      return {
+        pageCrops: nextPageCrops,
+        selectedTemplateId: template.id,
+        preferredPresetSizeId: template.presetSizeId ?? state.preferredPresetSizeId,
+        preferredPresetAnchor: template.presetAnchor ?? state.preferredPresetAnchor,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    });
+    persistPreferences(get());
+  },
   nudgeCrop: (pageIndex, dx, dy) =>
     set((state) => {
       const current = state.pageCrops[pageIndex];
@@ -563,16 +909,19 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
   selectAllPages: () =>
     set((state) => ({
       selectedPageIndices: Array.from({ length: state.pageCount }, (_, i) => i),
+      selectionAnchorPageIndex: state.pageCount > 0 ? 0 : null,
     })),
   goToPrevPage: () =>
     set((state) => ({
       currentPageIndex: Math.max(0, state.currentPageIndex - 1),
       selectedPageIndices: [Math.max(0, state.currentPageIndex - 1)],
+      selectionAnchorPageIndex: Math.max(0, state.currentPageIndex - 1),
     })),
   goToNextPage: () =>
     set((state) => ({
       currentPageIndex: Math.min(state.pageCount - 1, state.currentPageIndex + 1),
       selectedPageIndices: [Math.min(state.pageCount - 1, state.currentPageIndex + 1)],
+      selectionAnchorPageIndex: Math.min(state.pageCount - 1, state.currentPageIndex + 1),
     })),
   clearDraftCrop: () =>
     set({

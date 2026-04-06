@@ -22,7 +22,7 @@ export function useKeyboardShortcuts() {
   const goToPrevPage = usePdfStore((state) => state.goToPrevPage);
   const goToNextPage = usePdfStore((state) => state.goToNextPage);
   const selectAllPages = usePdfStore((state) => state.selectAllPages);
-  const clearPageCrop = usePdfStore((state) => state.clearPageCrop);
+  const clearPageCrops = usePdfStore((state) => state.clearPageCrops);
   const copyCrop = usePdfStore((state) => state.copyCrop);
   const pasteCropToPages = usePdfStore((state) => state.pasteCropToPages);
   const applyCropToPages = usePdfStore((state) => state.applyCropToPages);
@@ -135,7 +135,9 @@ export function useKeyboardShortcuts() {
 
       if (!modifier && (key === "delete" || key === "backspace")) {
         event.preventDefault();
-        clearPageCrop(currentPageIndex);
+        const targets =
+          selectedPageIndices.length > 1 ? selectedPageIndices : [currentPageIndex];
+        clearPageCrops(targets);
         return;
       }
 
@@ -201,7 +203,7 @@ export function useKeyboardShortcuts() {
   }, [
     applyCropToPages,
     clearDraftCrop,
-    clearPageCrop,
+    clearPageCrops,
     copyCrop,
     currentPageIndex,
     draftCropRect,

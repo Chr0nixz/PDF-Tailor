@@ -11,8 +11,18 @@ worker.onmessage = async (event: MessageEvent<ExportWorkerRequest>) => {
   }
 
   try {
-    const fileBuffer = await exportPdf(event.data.payload);
     const generation = event.data.generation;
+    const fileBuffer = await exportPdf(event.data.payload, {
+      onProgress: (progress) => {
+        const response: ExportWorkerResponse = {
+          type: "EXPORT_PROGRESS",
+          payload: progress,
+          generation,
+        };
+
+        worker.postMessage(response);
+      },
+    });
 
     const response: ExportWorkerResponse = {
       type: "EXPORT_SUCCESS",

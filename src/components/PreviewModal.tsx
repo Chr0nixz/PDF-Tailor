@@ -142,6 +142,11 @@ export function PreviewModal() {
         }
 
         const response = event.data;
+
+        if (response.type === "EXPORT_PROGRESS") {
+          return;
+        }
+
         worker.terminate();
         workerRef.current = null;
 
@@ -188,6 +193,7 @@ export function PreviewModal() {
           fileBuffer,
           pageCrops,
           exportMode: previewMode,
+          exportPageIndices: pages.map((page) => page.pageIndex),
         },
         generation: buildGeneration,
       });
@@ -201,7 +207,7 @@ export function PreviewModal() {
       workerRef.current = null;
       void cleanupPreviewDocument();
     };
-  }, [fileBuffer, pageCrops, previewMode, previewOpen]);
+  }, [fileBuffer, pageCrops, pages, previewMode, previewOpen]);
 
   useEffect(() => {
     let cancelled = false;
