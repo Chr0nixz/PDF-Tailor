@@ -12,7 +12,7 @@ export function PresetSizeDropdown({
   return (
     <label className="block">
       <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-        Preset size
+        预设纸张
       </div>
       <select
         value={value}

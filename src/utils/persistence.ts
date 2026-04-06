@@ -52,7 +52,7 @@ function normalizeTemplate(value: unknown): CropTemplate | null {
   const name =
     typeof value.name === "string" && value.name.trim().length > 0
       ? value.name.trim()
-      : "Saved template";
+      : "已保存模板";
   const mode = value.mode === "preset" ? "preset" : "free";
 
   return {

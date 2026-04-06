@@ -24,7 +24,7 @@ export default function App() {
               onClick={() => setErrorMessage(null)}
               className="rounded-full border border-ember/20 bg-white/70 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-ember transition hover:border-ember/35"
             >
-              Dismiss
+              关闭提示
             </button>
           </div>
         ) : null}

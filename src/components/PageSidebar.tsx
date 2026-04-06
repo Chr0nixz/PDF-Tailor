@@ -17,7 +17,7 @@ function parsePageRangeInput(value: string, pageCount: number) {
   if (!trimmed) {
     return {
       pageIndices: [] as number[],
-      error: "Enter pages like 1-5, 8, 10-12.",
+      error: "请输入类似 1-5、8、10-12 的页码范围。",
     };
   }
 
@@ -37,7 +37,7 @@ function parsePageRangeInput(value: string, pageCount: number) {
       if (!Number.isInteger(start) || !Number.isInteger(end)) {
         return {
           pageIndices: [] as number[],
-          error: `Invalid range: "${segment}".`,
+          error: `页码范围无效：“${segment}”。`,
         };
       }
 
@@ -48,7 +48,7 @@ function parsePageRangeInput(value: string, pageCount: number) {
         if (pageNumber < 1 || pageNumber > pageCount) {
           return {
             pageIndices: [] as number[],
-            error: `Page ${pageNumber} is outside 1-${pageCount}.`,
+            error: `页码 ${pageNumber} 超出 1-${pageCount} 范围。`,
           };
         }
 
@@ -61,14 +61,14 @@ function parsePageRangeInput(value: string, pageCount: number) {
     if (!Number.isInteger(pageNumber)) {
       return {
         pageIndices: [] as number[],
-        error: `Invalid page: "${segment}".`,
+        error: `页码无效：“${segment}”。`,
       };
     }
 
     if (pageNumber < 1 || pageNumber > pageCount) {
       return {
         pageIndices: [] as number[],
-        error: `Page ${pageNumber} is outside 1-${pageCount}.`,
+        error: `页码 ${pageNumber} 超出 1-${pageCount} 范围。`,
       };
     }
 
@@ -137,24 +137,24 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   };
 
   return (
-    <aside className="panel-surface flex min-h-0 min-h-[520px] flex-col overflow-hidden p-4">
+    <aside className="panel-surface flex min-h-0 flex-col overflow-hidden p-4 md:min-h-[520px]">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">Pages</div>
-          <div className="mt-1 text-lg font-semibold">Document navigation</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">页面</div>
+          <div className="mt-1 text-lg font-semibold">页面导航</div>
         </div>
         <div className="rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-ink/60">
-          {pages.length} items
+          共 {pages.length} 页
         </div>
       </div>
       {documentLoadState === "ready" && pages.length > 0 ? (
         <div className="mb-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs uppercase tracking-[0.18em] text-ink/45">
-              Selection tools
+              批量选择
             </div>
             <div className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">
-              {selectedPageIndices.length} selected
+              已选 {selectedPageIndices.length} 页
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -168,7 +168,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               }
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
             >
-              Cropped ({croppedPageIndices.length})
+              已裁剪 ({croppedPageIndices.length})
             </button>
             <button
               type="button"
@@ -180,7 +180,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               }
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
             >
-              Uncropped ({uncroppedPageIndices.length})
+              未裁剪 ({uncroppedPageIndices.length})
             </button>
             <button
               type="button"
@@ -192,7 +192,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               }
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
             >
-              Rotated ({rotatedPageIndices.length})
+              旋转页 ({rotatedPageIndices.length})
             </button>
             <button
               type="button"
@@ -204,12 +204,12 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               }
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20"
             >
-              All pages
+              全部页面
             </button>
           </div>
           <div className="mt-3">
             <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              Page range
+              页码范围
             </div>
             <div className="flex gap-2">
               <input
@@ -220,7 +220,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                     applyPageRangeSelection();
                   }
                 }}
-                placeholder="1-5, 8, 10-12"
+                placeholder="例如：1-5，8，10-12"
                 className="min-w-0 flex-1 rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
               />
               <button
@@ -228,14 +228,14 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                 onClick={applyPageRangeSelection}
                 className="rounded-full bg-ink px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-white transition hover:bg-ink/90"
               >
-                Select
+                选择
               </button>
             </div>
             {pageRangeError ? (
               <div className="mt-2 text-xs text-ember">{pageRangeError}</div>
             ) : (
               <div className="mt-2 text-xs text-ink/50">
-                Shift-click selects a contiguous range from the last focused page.
+                按住 Shift 点击缩略图，可从上一次焦点页连续选择。
               </div>
             )}
           </div>
@@ -246,14 +246,14 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               onClick={() => clearPageCrops(selectedPageIndices)}
               className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
             >
-              Clear crops on selected pages ({selectedCroppedCount})
+              清除选中页裁剪 ({selectedCroppedCount})
             </button>
           </div>
         </div>
       ) : null}
       {documentLoadState === "loading" ? (
         <div className="flex flex-1 items-center justify-center rounded-[24px] border border-dashed border-ink/10 bg-white/60 px-4 text-center text-sm text-ink/60">
-          Reading page metadata...
+          正在读取页面信息...
         </div>
       ) : null}
       {documentLoadState !== "loading" ? (
@@ -300,7 +300,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
           </div>
           {pages.length === 0 ? (
             <div className="flex h-full min-h-52 items-center justify-center rounded-[24px] border border-dashed border-ink/10 bg-white/60 px-4 text-center text-sm text-ink/60">
-              No pages available yet.
+              暂无可显示页面。
             </div>
           ) : null}
         </div>

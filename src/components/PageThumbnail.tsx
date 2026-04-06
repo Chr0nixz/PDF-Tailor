@@ -59,7 +59,7 @@ export const PageThumbnail = memo(function PageThumbnail({
       }`}
     >
       <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold">Page {page.pageIndex + 1}</div>
+        <div className="text-sm font-semibold">第 {page.pageIndex + 1} 页</div>
         <div className="flex items-center gap-2">
           {showRotation ? (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-900">
@@ -68,7 +68,7 @@ export const PageThumbnail = memo(function PageThumbnail({
           ) : null}
           {hasCrop ? (
             <span className="rounded-full bg-ember/15 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-ember">
-              Crop
+              已裁剪
             </span>
           ) : null}
           <span
@@ -76,7 +76,7 @@ export const PageThumbnail = memo(function PageThumbnail({
               isSelected ? "bg-pine text-white" : "bg-ink/5 text-ink/45"
             }`}
           >
-            {isSelected ? "Selected" : "Ready"}
+            {isSelected ? "已选中" : "就绪"}
           </span>
         </div>
       </div>
@@ -84,17 +84,17 @@ export const PageThumbnail = memo(function PageThumbnail({
         {thumbnail?.status === "ready" && thumbnail.dataUrl ? (
           <img
             src={thumbnail.dataUrl}
-            alt={`Page ${page.pageIndex + 1}`}
+            alt={`第 ${page.pageIndex + 1} 页缩略图`}
             className="max-h-full rounded-[12px] border border-ink/10 bg-paper shadow-sm"
           />
         ) : thumbnail?.status === "error" ? (
           <div className="rounded-[14px] border border-ember/15 bg-white/85 px-4 py-6 text-center text-xs text-ember">
-            Thumbnail failed
+            缩略图加载失败
           </div>
         ) : (
           <div className="rounded-[14px] border border-ink/10 bg-paper px-4 py-6 text-center shadow-sm">
             <div className="text-xs uppercase tracking-[0.2em] text-ink/45">
-              {thumbnail?.status === "loading" ? "Loading" : "Thumbnail"}
+              {thumbnail?.status === "loading" ? "加载中" : "缩略图"}
             </div>
             <div className="mt-1 text-sm text-ink/70">
               {Math.round(page.widthPt)} x {Math.round(page.heightPt)} pt

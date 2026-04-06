@@ -81,11 +81,11 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
   };
 
   return (
-    <section className="panel-surface flex min-h-0 min-h-[520px] flex-col overflow-hidden p-4">
+    <section className="panel-surface flex min-h-0 flex-col overflow-hidden p-4 md:min-h-[520px]">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">Workspace</div>
-          <div className="mt-1 text-lg font-semibold">Current page canvas</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">画布</div>
+          <div className="mt-1 text-lg font-semibold">当前页面</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -94,7 +94,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
             disabled={!page}
             className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Fit width
+            适应宽度
           </button>
           <button
             type="button"
@@ -102,7 +102,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
             disabled={!page}
             className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-xs font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Fit page
+            适应页面
           </button>
           <button
             type="button"
@@ -113,7 +113,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
             100%
           </button>
           <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-ink/60">
-            Zoom {Math.round(zoom * 100)}%
+            缩放 {Math.round(zoom * 100)}%
           </div>
         </div>
       </div>
@@ -126,12 +126,12 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(91,141,239,0.12),_transparent_32%),radial-gradient(circle_at_bottom,_rgba(184,92,56,0.08),_transparent_24%)]" />
           {documentLoadState === "loading" ? (
             <div className="relative rounded-[18px] bg-white/75 px-6 py-4 text-center text-sm text-ink/70">
-              Loading PDF...
+              正在加载 PDF...
               {documentLoadProgress !== null ? (
                 <div className="mt-2 font-medium">
                   {Number.isFinite(documentLoadProgress)
                     ? `${Math.round(documentLoadProgress)}%`
-                    : "Preparing pages"}
+                    : "正在准备页面"}
                 </div>
               ) : null}
             </div>
@@ -157,13 +157,13 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
                 </div>
               </PdfPageCanvas>
               <div className="absolute right-5 top-5 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white">
-                Page {currentPageIndex + 1}
+                第 {currentPageIndex + 1} 页
               </div>
             </div>
           ) : null}
           {documentLoadState !== "loading" && (!documentProxy || !page) ? (
             <div className="relative rounded-[18px] bg-white/75 px-6 py-4 text-sm text-ink/60">
-              Open a PDF to render the current page here.
+              打开 PDF 后，这里会显示当前页面和裁剪框。
             </div>
           ) : null}
         </div>

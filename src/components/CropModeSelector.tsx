@@ -7,8 +7,8 @@ interface CropModeSelectorProps {
 
 export function CropModeSelector({ value, onChange }: CropModeSelectorProps) {
   const modes: Array<{ value: CropMode; label: string }> = [
-    { value: "free", label: "Free" },
-    { value: "preset", label: "Preset" },
+    { value: "free", label: "自由框选" },
+    { value: "preset", label: "预设尺寸" },
   ];
 
   return (

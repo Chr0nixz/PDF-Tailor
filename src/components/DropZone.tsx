@@ -10,15 +10,15 @@ export function DropZone() {
 
   const hintLines = useMemo(
     () => [
-      "Drag a PDF file here or open one from disk.",
-      "Phase 2 loads the document with pdf.js and renders the current page to canvas.",
+      "所有处理都在浏览器本地完成，不会上传文档。",
+      "支持框选裁剪、模板复用、批量应用、预览和导出。",
     ],
     [],
   );
 
   const loadFile = async (file: File) => {
     if (!isPdfFile(file)) {
-      setErrorMessage("Please choose a PDF file.");
+      setErrorMessage("请选择 PDF 文件。");
       return;
     }
 
@@ -31,7 +31,7 @@ export function DropZone() {
       });
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to read the selected file.",
+        error instanceof Error ? error.message : "无法读取所选文件。",
       );
     }
   };
@@ -84,14 +84,14 @@ export function DropZone() {
       <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_center,_rgba(184,92,56,0.14),_transparent_70%)]" />
       <div className="relative z-10 flex max-w-3xl flex-col items-center text-center">
         <div className="mb-6 rounded-full border border-ink/10 bg-white/70 px-4 py-1 text-xs font-medium uppercase tracking-[0.24em] text-ink/60">
-          Load PDF
+          本地打开
         </div>
         <h1 className="max-w-2xl text-4xl font-semibold leading-tight md:text-6xl">
-          Open a PDF and start the render pipeline
+          打开 PDF，开始可视化裁剪
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-7 text-ink/70 md:text-lg">
-          This phase wires up local file selection, pdf.js document parsing,
-          page metadata extraction, canvas rendering, zoom control, and cleanup.
+          PDF-Tailor 专注于快速裁剪和批量整理页面。你可以直接拖入文件，
+          在当前页框选区域，再把结果应用到选中页或整份文档。
         </p>
         <div className="mt-8 grid w-full gap-4 md:grid-cols-2">
           {hintLines.map((line) => (
@@ -118,10 +118,10 @@ export function DropZone() {
             onClick={() => fileInputRef.current?.click()}
             className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition hover:bg-ink/90"
           >
-            Choose PDF
+            选择 PDF
           </button>
           <div className="rounded-full border border-ink/15 bg-white px-6 py-3 text-sm font-medium text-ink">
-            or drop a file anywhere in this panel
+            或把文件拖到这个区域
           </div>
         </div>
       </div>

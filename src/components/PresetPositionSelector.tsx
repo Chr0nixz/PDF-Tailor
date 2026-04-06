@@ -24,7 +24,7 @@ export function PresetPositionSelector({
   return (
     <div>
       <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-        Position
+        对齐位置
       </div>
       <div className="grid grid-cols-3 gap-2">
         {POSITIONS.map((position) => {

@@ -13,10 +13,10 @@ interface MarginInputsProps {
 }
 
 const SIDES: Array<{ key: keyof MarginInputValues; label: string }> = [
-  { key: "top", label: "Top" },
-  { key: "right", label: "Right" },
-  { key: "bottom", label: "Bottom" },
-  { key: "left", label: "Left" },
+  { key: "top", label: "上" },
+  { key: "right", label: "右" },
+  { key: "bottom", label: "下" },
+  { key: "left", label: "左" },
 ];
 
 export function MarginInputs({
@@ -28,7 +28,7 @@ export function MarginInputs({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs uppercase tracking-[0.18em] text-ink/45">Margins</div>
+        <div className="text-xs uppercase tracking-[0.18em] text-ink/45">页边距</div>
         <div className="text-xs font-medium uppercase tracking-[0.18em] text-ink/45">
           {unitLabel}
         </div>

@@ -63,9 +63,9 @@ export function PreviewModal() {
     if (previewMode === "redraw" && redrawBlocked) {
       setPreviewMode("crop-box");
       setPreviewError(
-        `Redraw preview is not available for cropped rotated pages (${rotatedCroppedPages
+        `当前裁剪后的旋转页（${rotatedCroppedPages
           .map((page) => page.pageIndex + 1)
-          .join(", ")}). Showing Crop box preview instead.`,
+          .join(", ")}）暂不支持重绘预览，已自动切换到 Crop box 预览。`,
       );
     }
   }, [previewMode, redrawBlocked, rotatedCroppedPages]);
@@ -112,7 +112,7 @@ export function PreviewModal() {
       }
 
       if (!fileBuffer) {
-        setPreviewError("Open a PDF before previewing.");
+        setPreviewError("请先打开 PDF 再预览。");
         return;
       }
 
@@ -121,7 +121,7 @@ export function PreviewModal() {
 
       setLoading(true);
       setPreviewError((value) =>
-        value?.startsWith("Redraw preview is not available") ? value : null,
+        value?.startsWith("当前裁剪后的旋转页") ? value : null,
       );
       setPreviewDocumentReady(false);
       await cleanupPreviewDocument();
@@ -176,7 +176,7 @@ export function PreviewModal() {
           setLoading(false);
         } catch (error) {
           setLoading(false);
-          setPreviewError(error instanceof Error ? error.message : "Failed to load preview.");
+          setPreviewError(error instanceof Error ? error.message : "预览文件加载失败。");
         }
       };
 
@@ -184,7 +184,7 @@ export function PreviewModal() {
         setLoading(false);
         worker.terminate();
         workerRef.current = null;
-        setPreviewError("Preview worker failed.");
+        setPreviewError("预览任务执行失败。");
       };
 
       worker.postMessage({
@@ -234,7 +234,7 @@ export function PreviewModal() {
         const context = canvas.getContext("2d");
 
         if (!context) {
-          throw new Error("Unable to create preview canvas context.");
+          throw new Error("无法创建预览画布上下文。");
         }
 
         canvas.width = Math.floor(viewport.width * outputScale);
@@ -267,7 +267,7 @@ export function PreviewModal() {
         }
 
         setRendering(false);
-        setPreviewError(error instanceof Error ? error.message : "Failed to render preview.");
+        setPreviewError(error instanceof Error ? error.message : "预览渲染失败。");
       }
     };
 
@@ -292,14 +292,12 @@ export function PreviewModal() {
       <div className="panel-surface flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.22em] text-ink/45">Preview</div>
-            <div className="mt-2 text-2xl font-semibold text-ink">
-              {fileName ?? "PDF preview"}
-            </div>
+            <div className="text-xs uppercase tracking-[0.22em] text-ink/45">预览</div>
+            <div className="mt-2 text-2xl font-semibold text-ink">{fileName ?? "PDF 预览"}</div>
             <div className="mt-2 text-sm text-ink/60">
               {croppedPageCount > 0
-                ? `${croppedPageCount} page(s) currently have crop settings.`
-                : "No crop settings found. Preview will match the original document."}
+                ? `当前有 ${croppedPageCount} 页已经设置裁剪。`
+                : "当前没有裁剪设置，预览会保持原始文档。"}
             </div>
           </div>
           <button
@@ -307,16 +305,16 @@ export function PreviewModal() {
             onClick={() => setPreviewOpen(false)}
             className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20"
           >
-            Close
+            关闭
           </button>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           {redrawBlocked ? (
             <div className="w-full rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
-              Rotated cropped pages detected on page {rotatedCroppedPages.length > 1 ? "s" : ""}{" "}
-              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join(", ")}. `Redraw`
-              preview is disabled for this selection.
+              检测到旋转裁剪页：
+              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join("、")}。当前选择下
+              `Redraw` 预览已禁用。
             </div>
           ) : null}
           <button
@@ -354,7 +352,7 @@ export function PreviewModal() {
               disabled={previewPageIndex <= 0 || loading}
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Prev
+              上一页
             </button>
             <div className="rounded-full bg-white/80 px-3 py-1.5 text-sm font-medium text-ink">
               {pageCount > 0 ? `${previewPageIndex + 1} / ${pageCount}` : "0 / 0"}
@@ -367,7 +365,7 @@ export function PreviewModal() {
               disabled={pageCount === 0 || previewPageIndex >= pageCount - 1 || loading}
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Next
+              下一页
             </button>
           </div>
         </div>
@@ -375,7 +373,7 @@ export function PreviewModal() {
         <div className="mt-6 flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.84)_0%,_rgba(230,238,245,0.84)_100%)] p-6">
           {loading ? (
             <div className="rounded-[18px] bg-white/80 px-6 py-4 text-sm text-ink/70">
-              Building preview...
+              正在生成预览...
             </div>
           ) : previewError ? (
             <div className="rounded-[18px] border border-ember/20 bg-ember/10 px-6 py-4 text-sm text-ember">
@@ -389,7 +387,7 @@ export function PreviewModal() {
               />
               {rendering ? (
                 <div className="absolute inset-0 flex items-center justify-center rounded-[20px] bg-paper/80 text-sm font-medium text-ink/60">
-                  Rendering preview...
+                  正在渲染预览...
                 </div>
               ) : null}
             </div>

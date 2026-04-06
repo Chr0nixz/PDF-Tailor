@@ -88,7 +88,7 @@ export function PropertiesPanel() {
   const [marginValues, setMarginValues] = useState(() =>
     createInputValues(margins, displayUnit),
   );
-  const [templateName, setTemplateName] = useState("Template 1");
+  const [templateName, setTemplateName] = useState("模板 1");
 
   const formatDisplayValue = (valuePt: number) =>
     formatUnit(toDisplayUnit(valuePt, displayUnit));
@@ -106,7 +106,7 @@ export function PropertiesPanel() {
   ]);
 
   useEffect(() => {
-    setTemplateName(selectedTemplate?.name ?? `Template ${templates.length + 1}`);
+    setTemplateName(selectedTemplate?.name ?? `模板 ${templates.length + 1}`);
   }, [selectedTemplate?.id, selectedTemplate?.name, templates.length]);
 
   const parseMarginValues = useMemo(
@@ -171,7 +171,7 @@ export function PropertiesPanel() {
 
   const handleCreateTemplate = () => {
     selectTemplate(null);
-    setTemplateName(`Template ${templates.length + 1}`);
+    setTemplateName(`模板 ${templates.length + 1}`);
   };
 
   const handleModeChange = (nextMode: CropMode) => {
@@ -229,11 +229,11 @@ export function PropertiesPanel() {
   };
 
   return (
-    <aside className="panel-surface flex min-h-0 min-h-[520px] flex-col overflow-auto p-4">
+    <aside className="panel-surface flex min-h-0 flex-col overflow-auto p-4 md:min-h-[520px]">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">Properties</div>
-          <div className="mt-1 text-lg font-semibold">Crop controls</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-ink/55">参数</div>
+          <div className="mt-1 text-lg font-semibold">裁剪控制</div>
         </div>
         <button
           type="button"
@@ -246,22 +246,30 @@ export function PropertiesPanel() {
 
       <div className="space-y-3">
         <PropertyBlock
-          title="Document state"
-          value={documentLoadState === "ready" ? "Ready for crop tools" : documentLoadState}
+          title="文档状态"
+          value={
+            documentLoadState === "ready"
+              ? "可开始裁剪"
+              : documentLoadState === "loading"
+                ? "加载中"
+                : documentLoadState === "error"
+                  ? "加载失败"
+                  : "待加载"
+          }
         />
         <PropertyBlock
-          title="Selection"
+          title="当前选区"
           value={
             cropRect
               ? `${formatDisplayValue(cropRect.width)} x ${formatDisplayValue(cropRect.height)} ${displayUnit}`
-              : "No crop selected"
+              : "尚未创建裁剪框"
           }
         />
       </div>
 
       <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
         <div className="mb-3 text-xs uppercase tracking-[0.18em] text-ink/45">
-          Crop mode
+          裁剪模式
         </div>
         <CropModeSelector value={mode} onChange={handleModeChange} />
       </div>
@@ -281,26 +289,26 @@ export function PropertiesPanel() {
 
       <div className="mt-4 rounded-[24px] border border-ink/8 bg-white/70 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-xs uppercase tracking-[0.18em] text-ink/45">Templates</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-ink/45">模板</div>
           <button
             type="button"
             onClick={handleCreateTemplate}
             className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink transition hover:border-ink/20"
           >
-            New
+            新建
           </button>
         </div>
         <div className="space-y-3">
           <label className="block">
             <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              Saved template
+              已保存模板
             </div>
             <select
               value={selectedTemplateId ?? ""}
               onChange={(event) => selectTemplate(event.target.value || null)}
               className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
             >
-              <option value="">New template</option>
+              <option value="">新模板</option>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.name}
@@ -309,11 +317,11 @@ export function PropertiesPanel() {
             </select>
           </label>
           <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">Name</div>
+            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">名称</div>
             <input
               value={templateName}
               onChange={(event) => setTemplateName(event.target.value)}
-              placeholder="Template name"
+              placeholder="模板名称"
               className="w-full rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky"
             />
           </label>
@@ -324,7 +332,7 @@ export function PropertiesPanel() {
               disabled={!cropRect}
               className="rounded-full bg-ink px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {selectedTemplate ? "Update selected template" : "Save as template"}
+              {selectedTemplate ? "更新当前模板" : "保存为模板"}
             </button>
             <button
               type="button"
@@ -334,7 +342,7 @@ export function PropertiesPanel() {
               disabled={!selectedTemplateId || !page}
               className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
             >
-              Apply template to current page
+              应用到当前页
             </button>
             <button
               type="button"
@@ -345,7 +353,7 @@ export function PropertiesPanel() {
               disabled={!selectedTemplateId || selectedTargets.length === 0}
               className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
             >
-              Apply template to selected pages ({selectedTargets.length})
+              应用到选中页 ({selectedTargets.length})
             </button>
             <button
               type="button"
@@ -353,7 +361,7 @@ export function PropertiesPanel() {
               disabled={!selectedTemplateId}
               className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
             >
-              Delete selected template
+              删除当前模板
             </button>
           </div>
         </div>
@@ -369,41 +377,43 @@ export function PropertiesPanel() {
       </div>
 
       <div className="mt-4 grid gap-3">
-        <PropertyBlock title="Top Margin" value={`${formatDisplayValue(margins.top)} ${displayUnit}`} />
-        <PropertyBlock title="Right Margin" value={`${formatDisplayValue(margins.right)} ${displayUnit}`} />
-        <PropertyBlock title="Bottom Margin" value={`${formatDisplayValue(margins.bottom)} ${displayUnit}`} />
-        <PropertyBlock title="Left Margin" value={`${formatDisplayValue(margins.left)} ${displayUnit}`} />
+        <PropertyBlock title="上边距" value={`${formatDisplayValue(margins.top)} ${displayUnit}`} />
+        <PropertyBlock title="右边距" value={`${formatDisplayValue(margins.right)} ${displayUnit}`} />
+        <PropertyBlock title="下边距" value={`${formatDisplayValue(margins.bottom)} ${displayUnit}`} />
+        <PropertyBlock title="左边距" value={`${formatDisplayValue(margins.left)} ${displayUnit}`} />
       </div>
 
       <div className="mt-4 rounded-[24px] border border-dashed border-ink/12 bg-panel px-4 py-4 text-sm leading-6 text-ink/65">
-        Preset paper sizes, 9-point positioning, and numeric margin editing are
-        live. Use "Apply to selected" or "Apply to all" to batch-apply crops.
+        预设纸张、九宫格定位和数值边距已经联动。你可以先在当前页调整，再批量应用到选中页或整份文档。
       </div>
 
       <div className="mt-auto grid gap-3 pt-4">
         <button
           type="button"
+          data-testid="clear-current-page-crop"
           disabled={!cropRect}
           onClick={() => clearPageCrop(currentPageIndex)}
           className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
         >
-          Clear current page crop
+          清除当前页裁剪
         </button>
         <button
           type="button"
+          data-testid="apply-current-crop-to-selected-pages"
           disabled={!cropRect || selectedTargets.length === 0}
           onClick={() => applyCropToPages(currentPageIndex, selectedTargets)}
           className="rounded-full bg-pine px-4 py-3 text-sm font-medium text-white transition enabled:hover:bg-pine/90 disabled:bg-pine/50"
         >
-          Apply to selected pages ({selectedTargets.length})
+          应用到选中页 ({selectedTargets.length})
         </button>
         <button
           type="button"
+          data-testid="apply-current-crop-to-all-pages"
           disabled={!cropRect || pages.length === 0}
           onClick={() => applyCropToPages(currentPageIndex, pages.map((pageItem) => pageItem.pageIndex))}
           className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50"
         >
-          Apply to all pages ({pages.length})
+          应用到全部页面 ({pages.length})
         </button>
       </div>
     </aside>

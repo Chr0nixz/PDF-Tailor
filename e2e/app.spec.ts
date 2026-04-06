@@ -92,29 +92,29 @@ test("loads a PDF, crops a page, previews, and exports", async ({ page }) => {
   await uploadPdf(page, "sample.pdf", await createSamplePdf());
 
   await expect(page.getByText("sample.pdf")).toBeVisible();
-  await expect(page.getByText("2 pages loaded")).toBeVisible();
-  await expect(page.getByRole("button", { name: /page 2/i })).toBeVisible();
+  await expect(page.getByText("已载入 2 页")).toBeVisible();
+  await expect(page.getByRole("button", { name: /第 2 页/i })).toBeVisible();
 
   await createCropSelection(page);
 
-  await page.getByRole("button", { name: /page 2/i }).click({ modifiers: ["Control"] });
-  await page.getByRole("button", { name: /page 1/i }).click({ modifiers: ["Control"] });
-  await page.getByRole("button", { name: /apply to selected pages/i }).click();
+  await page.getByRole("button", { name: /第 2 页/i }).click({ modifiers: ["Control"] });
+  await page.getByRole("button", { name: /第 1 页/i }).click({ modifiers: ["Control"] });
+  await page.getByTestId("apply-current-crop-to-selected-pages").click();
 
-  await page.getByRole("button", { name: /page 2/i }).click();
+  await page.getByRole("button", { name: /第 2 页/i }).click();
   await expect(page.getByTestId("crop-rectangle")).toBeVisible();
 
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "预览" }).click();
   await expect(page.getByTestId("preview-dialog")).toBeVisible();
   await expect(page.getByTestId("preview-dialog").getByText(/\/ 2/)).toBeVisible();
   await expect(page.getByTestId("preview-dialog").locator("canvas")).toBeVisible();
-  await page.getByTestId("preview-dialog").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("preview-dialog").getByRole("button", { name: "关闭" }).click();
   await expect(page.getByTestId("preview-dialog")).toBeHidden();
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("button", { name: "导出" }).click();
   await expect(page.getByTestId("export-dialog")).toBeVisible();
-  await page.getByTestId("export-dialog").getByRole("button", { name: "Export PDF" }).click();
+  await page.getByTestId("export-dialog").getByRole("button", { name: "导出 PDF" }).click();
 
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("sample-crop-box.pdf");
@@ -124,33 +124,33 @@ test("blocks redraw preview and export for cropped rotated pages", async ({ page
   await uploadPdf(page, "rotated.pdf", await createRotatedPdf());
 
   await expect(page.getByText("rotated.pdf")).toBeVisible();
-  await expect(page.getByText("1 pages loaded")).toBeVisible();
-  await expect(page.getByText("1 rotated page(s)")).toBeVisible();
+  await expect(page.getByText("已载入 1 页")).toBeVisible();
+  await expect(page.getByText("1 个旋转页")).toBeVisible();
   await expect(page.getByText("90°")).toBeVisible();
 
   await createCropSelection(page);
 
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "预览" }).click();
   await expect(page.getByTestId("preview-dialog")).toBeVisible();
-  await expect(page.getByText(/rotated cropped pages detected/i)).toBeVisible();
+  await expect(page.getByText(/检测到旋转裁剪页/i)).toBeVisible();
   await expect(
     page.getByTestId("preview-dialog").getByRole("button", { name: "Redraw" }),
   ).toBeDisabled();
-  await page.getByTestId("preview-dialog").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("preview-dialog").getByRole("button", { name: "关闭" }).click();
 
-  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("button", { name: "导出" }).click();
   await expect(page.getByTestId("export-dialog")).toBeVisible();
   await expect(
     page.getByTestId("export-dialog").getByRole("button", {
-      name: /disabled for rotated cropped pages/i,
+      name: /旋转裁剪页暂不支持/i,
     }),
   ).toBeDisabled();
   await expect(
-    page.getByTestId("export-dialog").getByText(/redraw.*disabled/i).first(),
+    page.getByTestId("export-dialog").getByText(/旋转裁剪页|Redraw/).first(),
   ).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByTestId("export-dialog").getByRole("button", { name: "Export PDF" }).click();
+  await page.getByTestId("export-dialog").getByRole("button", { name: "导出 PDF" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("rotated-crop-box.pdf");
 });
@@ -159,36 +159,36 @@ test("selects a page range and clears crops in bulk", async ({ page }) => {
   await uploadPdf(page, "three-pages.pdf", await createThreePagePdf());
 
   await expect(page.getByText("three-pages.pdf")).toBeVisible();
-  await expect(page.getByText("3 pages loaded")).toBeVisible();
+  await expect(page.getByText("已载入 3 页")).toBeVisible();
 
   await createCropSelection(page);
-  await page.getByRole("button", { name: /apply to all pages \(3\)/i }).click();
+  await page.getByTestId("apply-current-crop-to-all-pages").click();
 
-  await page.getByPlaceholder("1-5, 8, 10-12").fill("2-3");
-  await page.getByRole("button", { name: "Select", exact: true }).click();
-  await expect(page.getByText("2 selected")).toBeVisible();
-  await page.getByRole("button", { name: /clear crops on selected pages \(2\)/i }).click();
+  await page.getByPlaceholder("例如：1-5，8，10-12").fill("2-3");
+  await page.getByRole("button", { name: "选择", exact: true }).click();
+  await expect(page.getByText("已选 2 页")).toBeVisible();
+  await page.getByRole("button", { name: /清除选中页裁剪 \(2\)/i }).click();
 
-  await page.getByRole("button", { name: /page 2/i }).click();
+  await page.getByRole("button", { name: /第 2 页/i }).click();
   await expect(page.getByTestId("crop-rectangle")).toBeHidden();
 
-  await page.getByRole("button", { name: /page 1/i }).click();
+  await page.getByRole("button", { name: /第 1 页/i }).click();
   await expect(page.getByTestId("crop-rectangle")).toBeVisible();
 });
 
 test("exports only the selected pages when export range is scoped", async ({ page }) => {
   await uploadPdf(page, "three-pages.pdf", await createThreePagePdf());
 
-  await page.getByPlaceholder("1-5, 8, 10-12").fill("2-3");
-  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await page.getByPlaceholder("例如：1-5，8，10-12").fill("2-3");
+  await page.getByRole("button", { name: "选择", exact: true }).click();
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("button", { name: "导出" }).click();
   await page
     .getByTestId("export-dialog")
-    .getByRole("button", { name: /selected pages/i })
+    .getByRole("button", { name: /选中页/i })
     .click();
-  await page.getByTestId("export-dialog").getByRole("button", { name: "Export PDF" }).click();
+  await page.getByTestId("export-dialog").getByRole("button", { name: "导出 PDF" }).click();
 
   const download = await downloadPromise;
   const downloadPath = await download.path();

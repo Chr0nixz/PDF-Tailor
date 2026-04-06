@@ -11,17 +11,17 @@ import type { PageMetadata } from "@/types";
 function getDocumentErrorMessage(error: unknown) {
   if (error instanceof Error) {
     if (error.name === "PasswordException") {
-      return "Password-protected PDFs are not supported yet.";
+      return "暂不支持带密码保护的 PDF。";
     }
 
     if (error.name === "InvalidPDFException") {
-      return "The selected file is not a valid PDF document.";
+      return "所选文件不是有效的 PDF 文档。";
     }
 
     return error.message;
   }
 
-  return "Unable to load the selected PDF document.";
+  return "无法加载所选 PDF 文档。";
 }
 
 async function readPageMetadata(document: PDFDocumentProxy): Promise<PageMetadata[]> {

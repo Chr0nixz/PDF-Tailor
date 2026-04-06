@@ -217,7 +217,7 @@ function buildTemplateName(
   }
 
   const existingCount = templates.filter((template) => template.id !== templateId).length;
-  return `Template ${existingCount + 1}`;
+  return `模板 ${existingCount + 1}`;
 }
 
 function persistPreferences(state: Pick<

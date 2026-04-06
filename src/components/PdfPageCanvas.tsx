@@ -146,12 +146,12 @@ export function PdfPageCanvas({
       {children}
       {renderState === "loading" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-paper/80 text-sm font-medium text-ink/60">
-          Rendering page...
+          正在渲染页面...
         </div>
       ) : null}
       {renderState === "error" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-paper/90 px-6 text-center text-sm font-medium text-ember">
-          Failed to render this page.
+          当前页面渲染失败。
         </div>
       ) : null}
     </div>

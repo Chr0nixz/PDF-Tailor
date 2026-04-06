@@ -36,7 +36,7 @@ export function ExportDialog() {
   const [exportScope, setExportScope] = useState<ExportScope>("all");
   const [downloadName, setDownloadName] = useState(buildDownloadName(fileName, "crop-box"));
   const [progressPercent, setProgressPercent] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("Preparing export...");
+  const [progressLabel, setProgressLabel] = useState("正在准备导出...");
   const workerRef = useRef<Worker | null>(null);
   const exportGenerationRef = useRef(0);
 
@@ -79,7 +79,7 @@ export function ExportDialog() {
     setExportScope("all");
     setDownloadName(buildDownloadName(fileName, "crop-box"));
     setProgressPercent(0);
-    setProgressLabel("Preparing export...");
+    setProgressLabel("正在准备导出...");
   }, [exportDialogOpen, fileName]);
 
   useEffect(() => {
@@ -113,20 +113,20 @@ export function ExportDialog() {
     workerRef.current = null;
     setExportInProgress(false);
     setProgressPercent(0);
-    setProgressLabel("Export cancelled.");
+    setProgressLabel("导出已取消。");
   };
 
   const startExport = async () => {
     if (!fileBuffer) {
-      setErrorMessage("Open a PDF before exporting.");
+      setErrorMessage("请先打开 PDF 再导出。");
       return;
     }
 
     if (exportMode === "redraw" && redrawBlocked) {
       setErrorMessage(
-        `Redraw export is not available while cropped rotated pages are selected (${rotatedCroppedPages
+        `当前选中的旋转裁剪页（${rotatedCroppedPages
           .map((page) => page.pageIndex + 1)
-          .join(", ")}). Use Crop box mode instead.`,
+          .join(", ")}）暂不支持重绘导出，请改用 Crop box 模式。`,
       );
       return;
     }
@@ -138,7 +138,7 @@ export function ExportDialog() {
     });
 
     if (hasInvalidCrop) {
-      setErrorMessage("One or more crop rectangles are invalid. Adjust the crop and try again.");
+      setErrorMessage("存在无效裁剪框，请调整后再导出。");
       return;
     }
 
@@ -146,7 +146,7 @@ export function ExportDialog() {
     setExportInProgress(true);
     setDownloadName(nextDownloadName);
     setProgressPercent(0);
-    setProgressLabel("Preparing export...");
+    setProgressLabel("正在准备导出...");
 
     workerRef.current?.terminate();
     const generation = exportGenerationRef.current + 1;
@@ -176,8 +176,8 @@ export function ExportDialog() {
         setProgressPercent((current) => Math.max(current, basePercent));
         setProgressLabel(
           response.payload.stage === "saving"
-            ? "Saving final PDF..."
-            : `Processing pages ${response.payload.completedPages} / ${response.payload.totalPages}...`,
+            ? "正在保存最终 PDF..."
+            : `正在处理第 ${response.payload.completedPages} / ${response.payload.totalPages} 页...`,
         );
         return;
       }
@@ -193,7 +193,7 @@ export function ExportDialog() {
       }
 
       setProgressPercent(100);
-      setProgressLabel("Export complete.");
+      setProgressLabel("导出完成。");
       const normalizedBytes = new Uint8Array(response.payload.fileBuffer);
       const blob = new Blob([normalizedBytes], {
         type: "application/pdf",
@@ -215,7 +215,7 @@ export function ExportDialog() {
       worker.terminate();
       workerRef.current = null;
       setProgressPercent(0);
-      setErrorMessage("Export worker failed.");
+      setErrorMessage("导出任务执行失败。");
     };
 
     worker.postMessage({
@@ -238,12 +238,12 @@ export function ExportDialog() {
       <div className="panel-surface w-full max-w-xl p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.22em] text-ink/45">Export PDF</div>
-            <div className="mt-2 text-2xl font-semibold text-ink">Generate a new file</div>
+            <div className="text-xs uppercase tracking-[0.22em] text-ink/45">导出</div>
+            <div className="mt-2 text-2xl font-semibold text-ink">生成新的 PDF 文件</div>
             <div className="mt-2 text-sm text-ink/60">
               {scopedCroppedPageCount > 0
-                ? `${scopedCroppedPageCount} page(s) in this export scope currently have crop settings.`
-                : "No crop settings found in this export scope. Export will keep the original pages unchanged."}
+                ? `当前导出范围内有 ${scopedCroppedPageCount} 页已经设置裁剪。`
+                : "当前导出范围没有裁剪设置，导出结果会保持原始页面。"}
             </div>
           </div>
           <button
@@ -252,31 +252,31 @@ export function ExportDialog() {
             className="rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={exportInProgress}
           >
-            Close
+            关闭
           </button>
         </div>
 
         <div className="mt-6 space-y-4">
           <div>
             <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              Export range
+              导出范围
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               {[
                 {
                   value: "current",
-                  label: "Current page",
-                  description: `Only page ${currentPageIndex + 1}.`,
+                  label: "当前页",
+                  description: `仅导出第 ${currentPageIndex + 1} 页。`,
                 },
                 {
                   value: "selected",
-                  label: "Selected pages",
-                  description: `${selectedTargets.length} page(s) currently selected.`,
+                  label: "选中页",
+                  description: `当前已选 ${selectedTargets.length} 页。`,
                 },
                 {
                   value: "all",
-                  label: "All pages",
-                  description: `${pages.length} total page(s).`,
+                  label: "全部页面",
+                  description: `整份文档共 ${pages.length} 页。`,
                 },
               ].map((scope) => (
                 <button
@@ -297,15 +297,14 @@ export function ExportDialog() {
           </div>
           {redrawBlocked ? (
             <div className="rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
-              Rotated cropped pages detected on page {rotatedCroppedPages.length > 1 ? "s" : ""}{" "}
-              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join(", ")}. `Redraw`
-              export is disabled for this selection because the current redraw pipeline does not
-              safely remap 90/270 degree page coordinates yet.
+              检测到旋转裁剪页：
+              {rotatedCroppedPages.map((page) => page.pageIndex + 1).join("、")}。当前选择下
+              `Redraw` 导出已禁用，因为现有重绘链路还不能安全映射 90°/270° 页面的坐标。
             </div>
           ) : null}
           <label className="block">
             <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              File name
+              文件名
             </div>
             <input
               value={downloadName}
@@ -316,7 +315,7 @@ export function ExportDialog() {
 
           <div>
             <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45">
-              Export mode
+              导出模式
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <button
@@ -333,7 +332,7 @@ export function ExportDialog() {
               >
                 <div className="text-sm font-semibold text-ink">Crop box</div>
                 <div className="mt-1 text-sm leading-6 text-ink/60">
-                  Fast export. Updates the page crop and media boxes without redrawing content.
+                  速度更快，只修改页面的 crop/media box，不重绘页面内容。
                 </div>
               </button>
               <button
@@ -354,11 +353,11 @@ export function ExportDialog() {
               >
                 <div className="text-sm font-semibold text-ink">Redraw</div>
                 <div className="mt-1 text-sm leading-6 text-ink/60">
-                  Creates new pages using the crop rectangle as the final page size.
+                  以裁剪框大小重建新页面，更适合后续打印或继续处理。
                 </div>
                 {redrawBlocked ? (
                   <div className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-amber-900">
-                    Disabled for rotated cropped pages
+                    旋转裁剪页暂不支持
                   </div>
                 ) : null}
               </button>
@@ -386,7 +385,7 @@ export function ExportDialog() {
             onClick={() => (exportInProgress ? cancelExport() : setExportDialogOpen(false))}
             className="rounded-full border border-ink/10 bg-white/80 px-5 py-2.5 text-sm font-medium text-ink transition hover:border-ink/20 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {exportInProgress ? "Cancel export" : "Cancel"}
+            {exportInProgress ? "取消导出" : "取消"}
           </button>
           <button
             type="button"
@@ -394,7 +393,7 @@ export function ExportDialog() {
             disabled={exportInProgress}
             className="rounded-full bg-ember px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ember/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {exportInProgress ? "Exporting..." : "Export PDF"}
+            {exportInProgress ? "导出中..." : "导出 PDF"}
           </button>
         </div>
       </div>

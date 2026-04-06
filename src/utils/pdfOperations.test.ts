@@ -184,7 +184,7 @@ describe("pdfOperations", () => {
       }),
     });
 
-    await expect(exportPdf(payload)).rejects.toThrow("Invalid crop size on page 1.");
+    await expect(exportPdf(payload)).rejects.toThrow("第 1 页的裁剪尺寸无效。");
   });
 
   it("rejects redraw exports for cropped rotated pages", async () => {
@@ -203,7 +203,7 @@ describe("pdfOperations", () => {
     };
 
     await expect(exportPdf(payload)).rejects.toThrow(
-      "Redraw export does not support cropped rotated pages yet (page 1). Use Crop box mode instead.",
+      "Redraw 导出暂不支持带裁剪框的旋转页（第 1 页），请改用 Crop box 模式。",
     );
   });
 });

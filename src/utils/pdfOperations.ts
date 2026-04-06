@@ -20,7 +20,7 @@ function getValidCropRect(pageCrop: PageCropState | undefined): CropRect | null 
   }
 
   if (cropRect.width <= 0 || cropRect.height <= 0) {
-    throw new Error(`Invalid crop size on page ${cropRect.pageIndex + 1}.`);
+    throw new Error(`第 ${cropRect.pageIndex + 1} 页的裁剪尺寸无效。`);
   }
 
   return cropRect;
@@ -102,7 +102,7 @@ async function exportWithRedraw(payload: WorkerExportPayload, options?: ExportPd
 
     if (isQuarterTurnRotation(rotation)) {
       throw new Error(
-        `Redraw export does not support cropped rotated pages yet (page ${pageIndex + 1}). Use Crop box mode instead.`,
+        `Redraw 导出暂不支持带裁剪框的旋转页（第 ${pageIndex + 1} 页），请改用 Crop box 模式。`,
       );
     }
 
