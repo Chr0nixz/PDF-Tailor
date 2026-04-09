@@ -6,42 +6,26 @@ interface SpotlightProps {
 }
 
 export function Spotlight({ targetRef, padding = 8 }: SpotlightProps) {
-  const [clipPath, setClipPath] = useState("none");
-  const rafRef = useRef<number | null>(null);
+  const [pathD, setPathD] = useState("");
+  const viewportRef = useRef({ width: 0, height: 0 });
 
   const update = useCallback(() => {
     const target = targetRef.current;
     if (!target) return;
 
     const rect = target.getBoundingClientRect();
-    const x = rect.left - padding;
-    const y = rect.top - padding;
-    const w = rect.width + padding * 2;
-    const h = rect.height + padding * 2;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    viewportRef.current = { width: vw, height: vh };
 
-    // clockwise polygon: outer rect (inset) + inner rect (counter-clockwise = hole)
-    const ox = Math.max(0, x);
-    const oy = Math.max(0, y);
-    const ow = Math.min(w, vw - ox);
-    const oh = Math.min(h, vh - oy);
+    const outer = `M0,0 L${vw},0 L${vw},${vh} L0,${vh} Z`;
+    const ix = rect.left - padding;
+    const iy = rect.top - padding;
+    const iw = rect.width + padding * 2;
+    const ih = rect.height + padding * 2;
+    const inner = `M${ix},${iy} L${ix + iw},${iy} L${ix + iw},${iy + ih} L${ix},${iy + ih} Z`;
 
-    const poly = `polygon(
-      0% 0%, 100% 0%, 100% 100%, 0% 100%,
-      ${ox}px ${oy}px,
-      ${ox + ow}px ${oy}px,
-      ${ox + ow}px ${oy + oh}px,
-      ${ox}px ${oy + oh}px,
-      ${ox}px ${oy}px,
-      ${x}px ${y + h}px,
-      ${x + w}px ${y + h}px,
-      ${x + w}px ${y}px,
-      ${x}px ${y}px,
-      ${ox}px ${oy}px
-    )`;
-
-    setClipPath(poly);
+    setPathD(`${outer} ${inner}`);
   }, [targetRef, padding]);
 
   useEffect(() => {
@@ -60,15 +44,22 @@ export function Spotlight({ targetRef, padding = 8 }: SpotlightProps) {
     };
   }, [update]);
 
+  const vp = viewportRef.current;
+
   return (
-    <div
+    <svg
       aria-hidden="true"
       className="pointer-events-none fixed inset-0 z-[150]"
-      style={{
-        clipPath,
-        background: "rgba(0,0,0,0.65)",
-        transition: "clip-path 100ms ease-out",
-      }}
-    />
+      width={vp.width}
+      height={vp.height}
+      viewBox={`0 0 ${vp.width} ${vp.height}`}
+      preserveAspectRatio="none"
+    >
+      <path
+        d={pathD || "M0,0 L0,0 L0,0 L0,0 Z"}
+        fill="rgba(0,0,0,0.65)"
+        fillRule="evenodd"
+      />
+    </svg>
   );
 }

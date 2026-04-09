@@ -17,6 +17,62 @@
   background: #0b1018;
 }
 
+/* Theme: Paper (default light) */
+[data-theme="paper"] {
+  --bg-gradient-start: rgba(91, 141, 239, 0.18);
+  --bg-gradient-end: transparent;
+  --bg-gradient: linear-gradient(180deg, #f0ece2 0%, #e5edf4 42%, #d7e2ea 100%);
+  --bg-gradient-dark: linear-gradient(180deg, rgba(91, 141, 239, 0.1) 0%, transparent 30%),
+    linear-gradient(180deg, #0b1018 0%, #121c28 42%, #182230 100%);
+  --surface-bg: #f5f2ea;
+}
+
+/* Theme: Midnight (dark) */
+[data-theme="midnight"] {
+  --bg-gradient-start: rgba(91, 141, 239, 0.1);
+  --bg-gradient-end: transparent;
+  --bg-gradient: linear-gradient(180deg, #0b1018 0%, #121c28 42%, #182230 100%);
+  --bg-gradient-dark: linear-gradient(180deg, rgba(91, 141, 239, 0.1) 0%, transparent 30%),
+    linear-gradient(180deg, #0b1018 0%, #121c28 42%, #182230 100%);
+  --surface-bg: #1a2636;
+}
+
+/* Theme: Warm (warm amber tones) */
+[data-theme="warm"] {
+  --bg-gradient-start: rgba(184, 92, 56, 0.15);
+  --bg-gradient-end: transparent;
+  --bg-gradient: linear-gradient(180deg, #f5ede0 0%, #f0e4d4 42%, #e8d8c8 100%);
+  --bg-gradient-dark: linear-gradient(180deg, rgba(184, 92, 56, 0.12) 0%, transparent 30%),
+    linear-gradient(180deg, #2a1a10 0%, #3d2515 42%, #4a2d1a 100%);
+  --surface-bg: #f0e4d4;
+}
+
+/* Theme: High Contrast */
+[data-theme="high-contrast"] {
+  --bg-gradient-start: rgba(0, 0, 0, 0.3);
+  --bg-gradient-end: transparent;
+  --bg-gradient: linear-gradient(180deg, #ffffff 0%, #f0f0f0 42%, #e0e0e0 100%);
+  --bg-gradient-dark: linear-gradient(180deg, #000000 0%, #0a0a0a 42%, #141414 100%);
+  --surface-bg: #ffffff;
+}
+
+/* Default to paper theme if no data-theme is set */
+:root:not([data-theme]) {
+  --bg-gradient-start: rgba(91, 141, 239, 0.18);
+  --bg-gradient-end: transparent;
+  --bg-gradient: linear-gradient(180deg, #f0ece2 0%, #e5edf4 42%, #d7e2ea 100%);
+  --bg-gradient-dark: linear-gradient(180deg, rgba(91, 141, 239, 0.1) 0%, transparent 30%),
+    linear-gradient(180deg, #0b1018 0%, #121c28 42%, #182230 100%);
+  --surface-bg: #f5f2ea;
+}
+
+/* When .dark class is present alongside a theme, use dark background */
+.dark[data-theme="paper"],
+.dark[data-theme="warm"],
+.dark[data-theme="high-contrast"] {
+  --bg-gradient: var(--bg-gradient-dark);
+}
+
 * {
   box-sizing: border-box;
 }

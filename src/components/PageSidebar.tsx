@@ -156,6 +156,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
     }),
   );
   const [pageRangeExpanded, setPageRangeExpanded] = useState(false);
+  const [batchSelectExpanded, setBatchSelectExpanded] = useState(false);
   const rowVirtualizer = useVirtualizer({
     count: pages.length,
     getScrollElement: () => parentRef.current,
@@ -257,89 +258,118 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
       ) : null}
       {documentLoadState === "ready" && pages.length > 0 ? (
         <div className="mb-4 rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
-              {t("sidebar.batchSelectLabel")}
-            </div>
-            <div className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
-              {t("sidebar.selectedCount", { count: selectedPageIndices.length })}
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          {!batchSelectExpanded ? (
             <button
               type="button"
-              onClick={() => {
-                setSelectedPages(croppedPageIndices, sourceIdsToSelection(croppedPageIndices, pages, currentPageIndex));
-              }}
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+              onClick={() => setBatchSelectExpanded(true)}
+              className="flex w-full items-center justify-between gap-3"
             >
-              {t("sidebar.cropped", { count: croppedPageIndices.length })}
+              <div className="flex items-center gap-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+                  {t("sidebar.batchSelectLabel")}
+                </div>
+                <div className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
+                  {t("sidebar.selectedCount", { count: selectedPageIndices.length })}
+                </div>
+              </div>
+              <span className="text-ink/60 dark:text-ink-light/60">▼</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedPages(uncroppedPageIndices, sourceIdsToSelection(uncroppedPageIndices, pages, currentPageIndex));
-              }}
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {t("sidebar.uncropped", { count: uncroppedPageIndices.length })}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setSelectedPages(
-                  pages.map((page) => page.sourceId),
-                  { currentPageIndex: 0, anchorPageIndex: 0 },
-                )
-              }
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {t("sidebar.allPages")}
-            </button>
-          </div>
-          <div className="mt-3 border-t border-ink/8 pt-3 dark:border-white/10">
-            <button
-              type="button"
-              onClick={() => setPageRangeExpanded(!pageRangeExpanded)}
-              className="flex w-full items-center justify-between text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45"
-            >
-              <span>{t("sidebar.pageRangeLabel")}</span>
-              <span className="text-ink/60 dark:text-ink-light/60">
-                {pageRangeExpanded ? "▲" : "▼"}
-              </span>
-            </button>
-            {pageRangeExpanded && (
-              <div className="mt-3">
-                <div className="flex gap-2">
-                  <input
-                    value={pageRangeInput}
-                    onChange={(event) => setPageRangeInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        applyPageRangeSelection();
-                      }
-                    }}
-                    placeholder={t("sidebar.pageRangePlaceholder")}
-                    className="min-w-0 flex-1 rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
-                  />
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+                  {t("sidebar.batchSelectLabel")}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
+                    {t("sidebar.selectedCount", { count: selectedPageIndices.length })}
+                  </div>
                   <button
                     type="button"
-                    onClick={applyPageRangeSelection}
-                    className="rounded-full bg-ink px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-white transition hover:bg-ink/90 dark:bg-ink-light dark:text-mist-dark dark:hover:bg-ink-light/90"
+                    onClick={() => setBatchSelectExpanded(false)}
+                    className="rounded-full p-1 text-ink/60 hover:bg-ink/5 dark:text-ink-light/60 dark:hover:bg-white/10"
                   >
-                    {t("sidebar.select")}
+                    ▲
                   </button>
                 </div>
-                {pageRangeError ? (
-                  <div className="mt-2 text-xs text-ember">{pageRangeError}</div>
-                ) : (
-                  <div className="mt-2 text-xs text-ink/50 dark:text-ink-light/50">
-                    {t("sidebar.shiftSelectHint")}
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPages(croppedPageIndices, sourceIdsToSelection(croppedPageIndices, pages, currentPageIndex));
+                  }}
+                  className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+                >
+                  {t("sidebar.cropped", { count: croppedPageIndices.length })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPages(uncroppedPageIndices, sourceIdsToSelection(uncroppedPageIndices, pages, currentPageIndex));
+                  }}
+                  className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+                >
+                  {t("sidebar.uncropped", { count: uncroppedPageIndices.length })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedPages(
+                      pages.map((page) => page.sourceId),
+                      { currentPageIndex: 0, anchorPageIndex: 0 },
+                    )
+                  }
+                  className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+                >
+                  {t("sidebar.allPages")}
+                </button>
+              </div>
+              <div className="mt-3 border-t border-ink/8 pt-3 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setPageRangeExpanded(!pageRangeExpanded)}
+                  className="flex w-full items-center justify-between text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45"
+                >
+                  <span>{t("sidebar.pageRangeLabel")}</span>
+                  <span className="text-ink/60 dark:text-ink-light/60">
+                    {pageRangeExpanded ? "▲" : "▼"}
+                  </span>
+                </button>
+                {pageRangeExpanded && (
+                  <div className="mt-3">
+                    <div className="flex gap-2">
+                      <input
+                        value={pageRangeInput}
+                        onChange={(event) => setPageRangeInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            applyPageRangeSelection();
+                          }
+                        }}
+                        placeholder={t("sidebar.pageRangePlaceholder")}
+                        className="min-w-0 flex-1 rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
+                      />
+                      <button
+                        type="button"
+                        onClick={applyPageRangeSelection}
+                        className="rounded-full bg-ink px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-white transition hover:bg-ink/90 dark:bg-ink-light dark:text-mist-dark dark:hover:bg-ink-light/90"
+                      >
+                        {t("sidebar.select")}
+                      </button>
+                    </div>
+                    {pageRangeError ? (
+                      <div className="mt-2 text-xs text-ember">{pageRangeError}</div>
+                    ) : (
+                      <div className="mt-2 text-xs text-ink/50 dark:text-ink-light/50">
+                        {t("sidebar.shiftSelectHint")}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       ) : null}
       {documentLoadState === "ready" && pages.length > 0 && selectedCroppedCount > 0 ? (

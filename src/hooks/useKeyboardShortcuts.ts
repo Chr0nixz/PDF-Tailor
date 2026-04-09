@@ -1,5 +1,20 @@
 import { useCallback, useEffect } from "react";
 import { usePdfStore } from "@/store/usePdfStore";
+import {
+  DEFAULT_BINDINGS,
+  parseKeyEvent,
+  type KeyBinding,
+} from "@/hooks/useKeyBindings";
+
+const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+const REVERSE_ZOOM_STEPS = [...ZOOM_STEPS].reverse();
+
+const NUDGE_DIRECTIONS: Record<string, [number, number]> = {
+  nudgeUp: [0, -1],
+  nudgeDown: [0, 1],
+  nudgeLeft: [-1, 0],
+  nudgeRight: [1, 0],
+};
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
@@ -16,6 +31,7 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 export function useKeyboardShortcuts() {
+  const keyBindings = usePdfStore((state) => state.keyBindings);
   const undo = usePdfStore((state) => state.undo);
   const redo = usePdfStore((state) => state.redo);
   const setExportDialogOpen = usePdfStore((state) => state.setExportDialogOpen);
@@ -35,191 +51,141 @@ export function useKeyboardShortcuts() {
   const draftCropRect = usePdfStore((state) => state.draftCropRect);
   const pageCrops = usePdfStore((state) => state.pageCrops);
   const clearDraftCrop = usePdfStore((state) => state.clearDraftCrop);
+  const restoreOriginalOrder = usePdfStore((state) => state.restoreOriginalOrder);
+  const pages = usePdfStore((state) => state.pages);
 
   const hasCropRect = useCallback(
-    () => Boolean(draftCropRect ?? pageCrops[currentPageIndex]?.cropRect),
-    [draftCropRect, pageCrops, currentPageIndex],
+    () => {
+      const sourceId = pages[currentPageIndex]?.sourceId;
+      return Boolean(draftCropRect ?? (sourceId !== undefined && pageCrops[sourceId]?.cropRect));
+    },
+    [draftCropRect, pageCrops, currentPageIndex, pages],
   );
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const modifier = event.ctrlKey || event.metaKey;
+    const bindings: KeyBinding[] = keyBindings ?? DEFAULT_BINDINGS;
 
+    const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) {
         return;
       }
 
-      const key = event.key.toLowerCase();
+      const { key, modifiers } = parseKeyEvent(event);
 
-      if (modifier && ((key === "z" && event.shiftKey) || key === "y")) {
+      for (const binding of bindings) {
+        if (binding.key.toLowerCase() !== key.toLowerCase()) continue;
+        const bindingMods = binding.modifiers ?? [];
+        if (bindingMods.length !== modifiers.length) continue;
+        if (!bindingMods.every((m) => modifiers.includes(m))) continue;
         event.preventDefault();
-        redo();
+        dispatchAction(binding.id, key);
         return;
-      }
-
-      if (modifier && key === "z" && !event.shiftKey) {
-        event.preventDefault();
-        undo();
-        return;
-      }
-
-      if (modifier && key === "s") {
-        event.preventDefault();
-        setExportDialogOpen(true);
-        return;
-      }
-
-      if (modifier && key === "c") {
-        event.preventDefault();
-        copyCrop(currentPageIndex);
-        return;
-      }
-
-      if (modifier && key === "v") {
-        event.preventDefault();
-        const targets =
-          selectedPageIndices.length > 0 ? selectedPageIndices : [currentPageIndex];
-        pasteCropToPages(targets);
-        return;
-      }
-
-      if (modifier && key === "a") {
-        event.preventDefault();
-        selectAllPages();
-        return;
-      }
-
-      if (modifier && key === "enter") {
-        event.preventDefault();
-        const source = pageCrops[currentPageIndex];
-        if (!source?.cropRect) {
-          return;
-        }
-
-        const targets =
-          selectedPageIndices.length > 0 ? selectedPageIndices : [currentPageIndex];
-        applyCropToPages(currentPageIndex, targets);
-        return;
-      }
-
-      if (modifier && key === "0") {
-        event.preventDefault();
-        setZoom(1);
-        return;
-      }
-
-      const zoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-      if (modifier && (key === "=" || key === "+")) {
-        event.preventDefault();
-        const nextZoom = zoomSteps.find((step) => step > zoom);
-        if (nextZoom !== undefined) {
-          setZoom(nextZoom);
-        }
-        return;
-      }
-
-      if (modifier && key === "-") {
-        event.preventDefault();
-        const previousZoom = [...zoomSteps].reverse().find((step) => step < zoom);
-        if (previousZoom !== undefined) {
-          setZoom(previousZoom);
-        }
-        return;
-      }
-
-      if (key === "escape" && draftCropRect) {
-        event.preventDefault();
-        clearDraftCrop();
-        return;
-      }
-
-      if (!modifier && (key === "delete" || key === "backspace")) {
-        event.preventDefault();
-        const targets =
-          selectedPageIndices.length > 1 ? selectedPageIndices : [currentPageIndex];
-        clearPageCrops(targets);
-        return;
-      }
-
-      if (!modifier && key === "pageup") {
-        event.preventDefault();
-        goToPrevPage();
-        return;
-      }
-
-      if (!modifier && key === "pagedown") {
-        event.preventDefault();
-        goToNextPage();
-        return;
-      }
-
-      if (!modifier && key === "tab") {
-        event.preventDefault();
-        if (event.shiftKey) {
-          goToPrevPage();
-        } else {
-          goToNextPage();
-        }
-        return;
-      }
-
-      if (!modifier && key === " ") {
-        event.preventDefault();
-        setPreviewOpen(true);
-        return;
-      }
-
-      if (!modifier && key.startsWith("arrow")) {
-        if (!hasCropRect()) {
-          return;
-        }
-
-        const nudgeSize = event.shiftKey ? 10 : 1;
-        let dx = 0;
-        let dy = 0;
-
-        if (key === "arrowup") {
-          dy = -nudgeSize;
-        }
-        if (key === "arrowdown") {
-          dy = nudgeSize;
-        }
-        if (key === "arrowleft") {
-          dx = -nudgeSize;
-        }
-        if (key === "arrowright") {
-          dx = nudgeSize;
-        }
-
-        if (dx !== 0 || dy !== 0) {
-          event.preventDefault();
-          nudgeCrop(currentPageIndex, dx, dy);
-        }
       }
     };
+
+    function dispatchAction(id: string, key: string) {
+      switch (id) {
+        case "undo":
+          undo();
+          break;
+        case "redo":
+          redo();
+          break;
+        case "export":
+          setExportDialogOpen(true);
+          break;
+        case "copyCrop": {
+          const sourceId = pages[currentPageIndex]?.sourceId;
+          if (sourceId !== undefined) copyCrop(sourceId);
+          break;
+        }
+        case "pasteCrop": {
+          const sourceId = pages[currentPageIndex]?.sourceId;
+          pasteCropToPages(selectedPageIndices.length > 0 ? selectedPageIndices : (sourceId !== undefined ? [sourceId] : []));
+          break;
+        }
+        case "selectAll":
+          selectAllPages();
+          break;
+        case "applyCrop": {
+          const sourceId = pages[currentPageIndex]?.sourceId;
+          if (!sourceId || !pageCrops[sourceId]?.cropRect) return;
+          const targets =
+            selectedPageIndices.length > 0 ? selectedPageIndices : (sourceId !== undefined ? [sourceId] : []);
+          applyCropToPages(sourceId, targets);
+          break;
+        }
+        case "zoomReset":
+          setZoom(1);
+          break;
+        case "zoomIn": {
+          const nextZoom = ZOOM_STEPS.find((step) => step > zoom);
+          if (nextZoom !== undefined) setZoom(nextZoom);
+          break;
+        }
+        case "zoomOut": {
+          const previousZoom = REVERSE_ZOOM_STEPS.find((step) => step < zoom);
+          if (previousZoom !== undefined) setZoom(previousZoom);
+          break;
+        }
+        case "clearCrop": {
+          const sourceId = pages[currentPageIndex]?.sourceId;
+          const targets =
+            selectedPageIndices.length > 1 ? selectedPageIndices : (sourceId !== undefined ? [sourceId] : []);
+          clearPageCrops(targets);
+          break;
+        }
+        case "prevPage":
+          goToPrevPage();
+          break;
+        case "nextPage":
+          goToNextPage();
+          break;
+        case "togglePreview":
+          setPreviewOpen(true);
+          break;
+        case "nudgeUp":
+        case "nudgeDown":
+        case "nudgeLeft":
+        case "nudgeRight": {
+          if (!hasCropRect()) return;
+          const sourceId = pages[currentPageIndex]?.sourceId;
+          if (sourceId === undefined) return;
+          const [dx, dy] = NUDGE_DIRECTIONS[id] ?? [0, 0];
+          nudgeCrop(sourceId, dx, dy);
+          break;
+        }
+        case "restoreOrder":
+          restoreOriginalOrder();
+          break;
+      }
+    }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
-    applyCropToPages,
-    clearDraftCrop,
+    keyBindings,
+    undo,
+    redo,
+    setExportDialogOpen,
+    goToPrevPage,
+    goToNextPage,
+    selectAllPages,
     clearPageCrops,
     copyCrop,
-    currentPageIndex,
-    draftCropRect,
-    goToNextPage,
-    goToPrevPage,
-    hasCropRect,
-    nudgeCrop,
-    pageCrops,
     pasteCropToPages,
-    redo,
-    selectAllPages,
-    selectedPageIndices,
-    setExportDialogOpen,
+    applyCropToPages,
+    nudgeCrop,
     setPreviewOpen,
     setZoom,
-    undo,
     zoom,
+    currentPageIndex,
+    selectedPageIndices,
+    draftCropRect,
+    pageCrops,
+    clearDraftCrop,
+    hasCropRect,
+    restoreOriginalOrder,
+    pages,
   ]);
 }

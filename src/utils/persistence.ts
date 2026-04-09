@@ -1,6 +1,15 @@
 import type { CropTemplate, PdfUnit, PresetAnchor } from "@/types";
+import type { KeyBinding } from "@/hooks/useKeyBindings";
 
 const STORAGE_KEY = "pdf-tailor.preferences.v1";
+
+export const MAX_RECENT_FILES = 10;
+
+export interface RecentFile {
+  path: string;
+  name: string;
+  lastOpened: number;
+}
 
 export interface PersistedPreferences {
   displayUnit: PdfUnit;
@@ -9,10 +18,17 @@ export interface PersistedPreferences {
   preferredPresetAnchor: PresetAnchor;
   templates: CropTemplate[];
   selectedTemplateId: string | null;
-  theme: "light" | "dark" | "system";
+  themeName: "paper" | "midnight" | "warm" | "high-contrast";
   lastExportScope: "current" | "selected" | "all";
   lastExportMode: "crop-box" | "redraw";
-  onboardingCompleted?: boolean;
+  onboardingCompleted: boolean;
+  onboardingStep: number;
+  keyBindings?: KeyBinding[] | null;
+  sidebarWidth?: number;
+  propertiesPanelWidth?: number;
+  sidebarCollapsed?: boolean;
+  propertiesPanelCollapsed?: boolean;
+  recentFiles: RecentFile[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -109,10 +125,13 @@ export function loadPersistedPreferences(): Partial<PersistedPreferences> {
       selectedTemplateId: templates.some((template) => template.id === selectedTemplateId)
         ? selectedTemplateId
         : null,
-      theme:
-        parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "system"
-          ? parsed.theme
-          : "system",
+      themeName:
+        parsed.themeName === "paper" ||
+        parsed.themeName === "midnight" ||
+        parsed.themeName === "warm" ||
+        parsed.themeName === "high-contrast"
+          ? parsed.themeName
+          : "paper",
       lastExportScope:
         parsed.lastExportScope === "current" ||
         parsed.lastExportScope === "selected" ||
@@ -124,10 +143,42 @@ export function loadPersistedPreferences(): Partial<PersistedPreferences> {
           ? parsed.lastExportMode
           : "crop-box",
       onboardingCompleted: typeof parsed.onboardingCompleted === "boolean" ? parsed.onboardingCompleted : false,
+      onboardingStep:
+        typeof parsed.onboardingStep === "number" && Number.isInteger(parsed.onboardingStep)
+          ? Math.max(0, parsed.onboardingStep)
+          : 0,
+      keyBindings: Array.isArray(parsed.keyBindings) ? parsed.keyBindings as KeyBinding[] : null,
+      sidebarWidth:
+        typeof parsed.sidebarWidth === "number" && parsed.sidebarWidth >= 200 && parsed.sidebarWidth <= 500
+          ? parsed.sidebarWidth
+          : 280,
+      propertiesPanelWidth:
+        typeof parsed.propertiesPanelWidth === "number" &&
+        parsed.propertiesPanelWidth >= 240 &&
+        parsed.propertiesPanelWidth <= 480
+          ? parsed.propertiesPanelWidth
+          : 320,
+      sidebarCollapsed: typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
+      propertiesPanelCollapsed:
+        typeof parsed.propertiesPanelCollapsed === "boolean" ? parsed.propertiesPanelCollapsed : false,
+      recentFiles: normalizeRecentFiles(parsed.recentFiles),
     };
   } catch {
     return {};
   }
+}
+
+function normalizeRecentFiles(value: unknown): RecentFile[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => isRecord(item))
+    .filter((item) => typeof item.path === "string" && typeof item.name === "string" && typeof item.lastOpened === "number")
+    .map((item) => ({
+      path: item.path as string,
+      name: item.name as string,
+      lastOpened: item.lastOpened as number,
+    }))
+    .slice(0, MAX_RECENT_FILES);
 }
 
 export function savePersistedPreferences(preferences: PersistedPreferences) {

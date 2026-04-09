@@ -37,13 +37,14 @@ export function selectCurrentMargins(
   draftCropRect?: CropRect | null,
   dragPageIndex?: number | null,
 ): PageMargins {
-  const page = pages.find((item) => item.pageIndex === currentPageIndex);
+  const page = pages[currentPageIndex];
+  const sourceId = page?.sourceId ?? currentPageIndex;
 
   if (page && draftCropRect && dragPageIndex === currentPageIndex) {
     return cropRectToMargins(draftCropRect, page.widthPt, page.heightPt);
   }
 
-  return pageCrops[currentPageIndex]?.marginsPt ?? emptyMargins;
+  return pageCrops[sourceId]?.marginsPt ?? emptyMargins;
 }
 
 export function selectHasDocument(pageCount: number) {

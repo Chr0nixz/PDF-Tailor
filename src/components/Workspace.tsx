@@ -28,6 +28,10 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
   const draftCropRect = usePdfStore((state) => state.draftCropRect);
   const activeDragState = usePdfStore((state) => state.activeDragState);
   const viewMode = usePdfStore((state) => state.viewMode);
+  const sidebarCollapsed = usePdfStore((state) => state.sidebarCollapsed);
+  const propertiesPanelCollapsed = usePdfStore((state) => state.propertiesPanelCollapsed);
+  const setSidebarCollapsed = usePdfStore((state) => state.setSidebarCollapsed);
+  const setPropertiesPanelCollapsed = usePdfStore((state) => state.setPropertiesPanelCollapsed);
   const page = pages[currentPageIndex];
   const viewport = useMemo<ViewportMetrics | null>(
     () =>
@@ -120,6 +124,24 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
           </button>
           <div aria-live="polite" className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-ink/60 dark:bg-white/5 dark:text-ink-light/55">
             {t("workspace.zoomLabel", { percent: Math.round(zoom * 100) })}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title={t("workspace.toggleLeftSidebar")}
+              className={`rounded-full p-2 text-xs transition ${sidebarCollapsed ? "bg-ink/10 text-ink/40" : "bg-white/80 text-ink hover:bg-ink/5 dark:bg-white/5 dark:text-ink-light hover:dark:bg-white/10"}`}
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              onClick={() => setPropertiesPanelCollapsed(!propertiesPanelCollapsed)}
+              title={t("workspace.toggleRightSidebar")}
+              className={`rounded-full p-2 text-xs transition ${propertiesPanelCollapsed ? "bg-ink/10 text-ink/40" : "bg-white/80 text-ink hover:bg-ink/5 dark:bg-white/5 dark:text-ink-light hover:dark:bg-white/10"}`}
+            >
+              ▶
+            </button>
           </div>
         </div>
       </div>

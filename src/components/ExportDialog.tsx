@@ -7,6 +7,7 @@ import { getRotatedCroppedPages, formatRotatedPagesList } from "@/utils/document
 import type { ExportMode, ExportScope } from "@/types";
 import type { ExportWorkerResponse } from "@/workers/workerTypes";
 import { useThumbnails } from "@/hooks/useThumbnails";
+import { savePdfDialog, writeFileFromUint8Array, openFileLocation, isTauriAvailable } from "@/utils/fileIO";
 
 function buildDownloadName(fileName: string | null, mode: ExportMode) {
   const baseName = fileName?.replace(/\.pdf$/i, "") ?? "pdf-tailor-export";
@@ -239,18 +240,37 @@ const workerRef = useRef<Worker | null>(null);
       setProgressPercent(100);
       setProgressLabel(t("export.exportDone"));
       const normalizedBytes = new Uint8Array(response.payload.fileBuffer);
-      const blob = new Blob([normalizedBytes], {
-        type: "application/pdf",
-      });
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
 
-      anchor.href = objectUrl;
-      anchor.download = nextDownloadName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(objectUrl);
+      if (isTauriAvailable()) {
+        // Use native Tauri save dialog
+        (async () => {
+          const savePath = await savePdfDialog(nextDownloadName);
+          if (savePath) {
+            await writeFileFromUint8Array(savePath, normalizedBytes);
+            addToast({ type: "success", message: t("export.exportDone") });
+            // Offer to open the file location
+            openFileLocation(savePath).catch(() => {});
+          } else {
+            // User cancelled - keep dialog open
+            setExportDialogOpen(false);
+            return;
+          }
+        })();
+      } else {
+        // Fallback to browser download
+        const blob = new Blob([normalizedBytes], {
+          type: "application/pdf",
+        });
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+
+        anchor.href = objectUrl;
+        anchor.download = nextDownloadName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
+      }
       setExportDialogOpen(false);
     };
 

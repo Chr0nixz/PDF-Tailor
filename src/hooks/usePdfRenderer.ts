@@ -39,10 +39,12 @@ async function readPageMetadata(document: PDFDocumentProxy): Promise<PageMetadat
       const page = await document.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
       const meta: PageMetadata = {
-        pageIndex: pageNumber - 1,
+        sourceId: pageNumber - 1,
+        pageIndex: pageNumber - 1, // kept for backwards compat -- alias of sourceId
         widthPt: viewport.width,
         heightPt: viewport.height,
         rotation: page.rotate,
+        userRotation: 0,
       };
       page.cleanup();
       return meta;

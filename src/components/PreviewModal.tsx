@@ -11,10 +11,7 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { getRotatedCroppedPages, formatRotatedPagesList } from "@/utils/documentWarnings";
 import type { ExportMode } from "@/types";
 import type { ExportWorkerResponse } from "@/workers/workerTypes";
-
-function fitScale(width: number, height: number) {
-  return Math.min(1.25, 760 / width, 640 / height);
-}
+import { fitScale } from "@/utils/scale";
 
 export function PreviewModal() {
   const { t } = useTranslation();
