@@ -5,6 +5,7 @@ import { CropOverlay } from "@/components/CropOverlay";
 import { CropRectangle } from "@/components/CropRectangle";
 import { PdfPageCanvas } from "@/components/PdfPageCanvas";
 import { Skeleton } from "@/components/Skeleton";
+import { SplitView } from "@/components/SplitView";
 import { useCropSelection } from "@/hooks/useCropSelection";
 import { usePdfStore } from "@/store/usePdfStore";
 import { selectCurrentPageCrop } from "@/store/selectors";
@@ -26,6 +27,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
   const pageCrops = usePdfStore((state) => state.pageCrops);
   const draftCropRect = usePdfStore((state) => state.draftCropRect);
   const activeDragState = usePdfStore((state) => state.activeDragState);
+  const viewMode = usePdfStore((state) => state.viewMode);
   const page = pages[currentPageIndex];
   const viewport = useMemo<ViewportMetrics | null>(
     () =>
@@ -124,6 +126,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
       <div className="flex flex-1 items-stretch justify-center rounded-[28px] border border-dashed border-ink/10 bg-[linear-gradient(180deg,_rgba(255,253,248,0.8)_0%,_rgba(230,238,245,0.8)_100%)] p-6 dark:border-white/10 dark:bg-[linear-gradient(180deg,_rgba(15,25,35,0.8)_0%,_rgba(18,28,40,0.8)_100%)]">
         <div
           ref={viewportFrameRef}
+          id="workspace-viewport"
           data-testid="workspace-viewport"
           className="relative flex min-h-[460px] w-full items-start justify-center overflow-auto rounded-[24px] bg-[#dbe3ea] p-3 sm:p-6 md:p-8 dark:bg-[#1a2636]"
         >
@@ -140,37 +143,44 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
             </div>
           ) : null}
           {documentLoadState === "ready" && documentProxy && page ? (
-            <div className="relative z-10">
-              <PdfPageCanvas
-                documentProxy={documentProxy}
-                pageIndex={currentPageIndex}
-                zoom={zoom}
-              >
-                <div ref={cropLayerRef} data-testid="crop-layer" className="absolute inset-0">
-                  <CropOverlay onPointerDown={startCreate} />
-                  {viewport && cropRect ? (
-                    <CropRectangle
-                      cropRect={cropRect}
-                      viewport={viewport}
-                      snapGuides={snapGuides}
-                      onMoveStart={startMove}
-                      onResizeStart={startResize}
-                    />
-                  ) : null}
-                  {viewport &&
-                  activeDragState.pageIndex === currentPageIndex &&
-                  draftCropRect ? (
-                    <CropDimensionsTooltip
-                      cropRect={draftCropRect}
-                      viewport={viewport}
-                    />
-                  ) : null}
-                </div>
-              </PdfPageCanvas>
-              <div aria-live="polite" className="absolute right-5 top-5 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white dark:bg-ink-light dark:text-mist-dark">
-                {t("workspace.pageBadge", { page: currentPageIndex + 1 })}
+            viewMode === "split" ? (
+              <div className="relative z-10 flex h-full w-full">
+                <SplitView documentProxy={documentProxy} />
               </div>
-            </div>
+            ) : (
+              <div className="relative z-10">
+                <PdfPageCanvas
+                  documentProxy={documentProxy}
+                  pageIndex={currentPageIndex}
+                  zoom={zoom}
+                  userRotation={page?.userRotation}
+                >
+                  <div ref={cropLayerRef} data-testid="crop-layer" className="absolute inset-0">
+                    <CropOverlay onPointerDown={startCreate} />
+                    {viewport && cropRect ? (
+                      <CropRectangle
+                        cropRect={cropRect}
+                        viewport={viewport}
+                        snapGuides={snapGuides}
+                        onMoveStart={startMove}
+                        onResizeStart={startResize}
+                      />
+                    ) : null}
+                    {viewport &&
+                    activeDragState.pageIndex === currentPageIndex &&
+                    draftCropRect ? (
+                      <CropDimensionsTooltip
+                        cropRect={draftCropRect}
+                        viewport={viewport}
+                      />
+                    ) : null}
+                  </div>
+                </PdfPageCanvas>
+                <div aria-live="polite" className="absolute right-5 top-5 rounded-full bg-ink px-3 py-1 text-xs font-medium text-white dark:bg-ink-light dark:text-mist-dark">
+                  {t("workspace.pageBadge", { page: currentPageIndex + 1 })}
+                </div>
+              </div>
+            )
           ) : null}
           {documentLoadState !== "loading" && (!documentProxy || !page) ? (
             <div className="relative rounded-[18px] bg-white/75 px-6 py-4 text-sm text-ink/60 dark:bg-white/5 dark:text-ink-light/55">

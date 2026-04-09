@@ -1,15 +1,19 @@
 import { create } from "zustand";
 import i18n from "@/i18n/i18n";
+import type { KeyBinding } from "@/hooks/useKeyBindings";
 import {
   createPresetCropRect,
   cropRectToMargins,
   marginsToCropRect,
 } from "@/utils/coordinates";
 import { findPaperSize } from "@/utils/paperSizes";
+import { normalizeRotation } from "@/utils/documentWarnings";
 import {
   loadPersistedPreferences,
   savePersistedPreferences,
   type PersistedPreferences,
+  type RecentFile,
+  MAX_RECENT_FILES,
 } from "@/utils/persistence";
 import type {
   CropTemplate,
@@ -58,15 +62,28 @@ interface PdfStoreState {
   templates: CropTemplate[];
   selectedTemplateId: string | null;
   previewOpen: boolean;
+  printPreviewOpen: boolean;
   exportDialogOpen: boolean;
+  shortcutSettingsOpen: boolean;
   exportInProgress: boolean;
-  theme: "light" | "dark" | "system";
+  onboardingCompleted: boolean;
+  onboardingStep: number;
+  sidebarWidth: number;
+  propertiesPanelWidth: number;
+  sidebarCollapsed: boolean;
+  propertiesPanelCollapsed: boolean;
+  themeName: "paper" | "midnight" | "warm" | "high-contrast";
+  viewMode: "crop" | "split";
   past: HistorySnapshot[];
   future: HistorySnapshot[];
   lastAction: string | null;
   lastUndoneAction: string | null;
   lastExportScope: "current" | "selected" | "all";
   lastExportMode: "crop-box" | "redraw";
+  keyBindings: KeyBinding[] | null;
+  recentFiles: RecentFile[];
+  setRecentFiles: (files: RecentFile[]) => void;
+  addRecentFile: (file: RecentFile) => void;
   setDocument: (payload: {
     file: File;
     fileBuffer: Uint8Array;
@@ -78,6 +95,7 @@ interface PdfStoreState {
   setPages: (pages: PageMetadata[]) => void;
   reorderPages: (fromIndex: number, toIndex: number) => void;
   setCurrentPage: (pageIndex: number) => void;
+  rotatePage: (pageIndex: number, degrees: number) => void;
   toggleSelectedPage: (
     pageIndex: number,
     multiSelect?: boolean,
@@ -131,10 +149,20 @@ interface PdfStoreState {
   setLastAction: (action: string | null) => void;
   setLastUndoneAction: (action: string | null) => void;
   setPreviewOpen: (open: boolean) => void;
+  setPrintPreviewOpen: (open: boolean) => void;
   setExportDialogOpen: (open: boolean) => void;
+  setShortcutSettingsOpen: (open: boolean) => void;
+  setViewMode: (viewMode: "crop" | "split") => void;
+  setSidebarWidth: (width: number) => void;
+  setPropertiesPanelWidth: (width: number) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setPropertiesPanelCollapsed: (collapsed: boolean) => void;
   setExportInProgress: (value: boolean) => void;
-  setTheme: (theme: "light" | "dark" | "system") => void;
+  setOnboardingCompleted: (value: boolean) => void;
+  setOnboardingStep: (step: number) => void;
+  setThemeName: (themeName: "paper" | "midnight" | "warm" | "high-contrast") => void;
   setLastExportSettings: (scope: "current" | "selected" | "all", mode: "crop-box" | "redraw") => void;
+  setKeyBindings: (bindings: KeyBinding[] | null) => void;
   clearPageCrop: (pageIndex: number) => void;
   clearPageCrops: (pageIndices: number[]) => void;
   copyCrop: (pageIndex: number) => void;
@@ -153,6 +181,8 @@ interface PdfStoreState {
   goToPrevPage: () => void;
   goToNextPage: () => void;
   clearDraftCrop: () => void;
+  restoreOriginalOrder: () => void;
+  isOrderModified: () => boolean;
 }
 
 const createEmptyPageCrop = (pageIndex: number): PageCropState => ({
@@ -201,15 +231,26 @@ const initialState = {
   templates: [] as CropTemplate[],
   selectedTemplateId: null as string | null,
   previewOpen: false,
+  printPreviewOpen: false,
   exportDialogOpen: false,
+  shortcutSettingsOpen: false,
   exportInProgress: false,
-  theme: "system" as "light" | "dark" | "system",
+  onboardingCompleted: persistedPreferences.onboardingCompleted ?? false,
+  onboardingStep: persistedPreferences.onboardingStep ?? 0,
+  themeName: persistedPreferences.themeName ?? "paper",
   past: [] as HistorySnapshot[],
   future: [] as HistorySnapshot[],
   lastAction: null as string | null,
   lastUndoneAction: null as string | null,
   lastExportScope: persistedPreferences.lastExportScope ?? "all",
   lastExportMode: persistedPreferences.lastExportMode ?? "crop-box",
+  keyBindings: persistedPreferences.keyBindings ?? null,
+  recentFiles: persistedPreferences.recentFiles ?? [],
+  sidebarWidth: persistedPreferences.sidebarWidth ?? 280,
+  propertiesPanelWidth: persistedPreferences.propertiesPanelWidth ?? 320,
+  sidebarCollapsed: persistedPreferences.sidebarCollapsed ?? false,
+  propertiesPanelCollapsed: persistedPreferences.propertiesPanelCollapsed ?? false,
+  viewMode: "crop" as "crop" | "split",
 };
 
 function createTemplateId() {
@@ -243,9 +284,17 @@ function persistPreferences(state: Pick<
   | "preferredPresetAnchor"
   | "templates"
   | "selectedTemplateId"
-  | "theme"
+  | "themeName"
   | "lastExportScope"
   | "lastExportMode"
+  | "onboardingCompleted"
+  | "onboardingStep"
+  | "keyBindings"
+  | "sidebarWidth"
+  | "propertiesPanelWidth"
+  | "sidebarCollapsed"
+  | "propertiesPanelCollapsed"
+  | "recentFiles"
 >) {
   const snapshot: PersistedPreferences = {
     displayUnit: state.displayUnit,
@@ -254,9 +303,17 @@ function persistPreferences(state: Pick<
     preferredPresetAnchor: state.preferredPresetAnchor,
     templates: state.templates,
     selectedTemplateId: state.selectedTemplateId,
-    theme: state.theme,
+    themeName: state.themeName,
     lastExportScope: state.lastExportScope,
     lastExportMode: state.lastExportMode,
+    onboardingCompleted: state.onboardingCompleted,
+    onboardingStep: state.onboardingStep,
+    keyBindings: state.keyBindings,
+    sidebarWidth: state.sidebarWidth,
+    propertiesPanelWidth: state.propertiesPanelWidth,
+    sidebarCollapsed: state.sidebarCollapsed,
+    propertiesPanelCollapsed: state.propertiesPanelCollapsed,
+    recentFiles: state.recentFiles,
   };
 
   savePersistedPreferences(snapshot);
@@ -328,6 +385,23 @@ function applyTemplateToPage(
   };
 }
 
+function resolvePageByStoreId(stableId: number, pages: PageMetadata[]): PageMetadata | undefined {
+  return pages.find(
+    (p) => p.sourceId === stableId || p.pageIndex === stableId,
+  );
+}
+
+/** Convert a stable sourceId to its current array index in pages[]. */
+function sourceIdToDisplayIndex(sourceId: number, pages: PageMetadata[]): number {
+  const idx = pages.findIndex((p) => p.sourceId === sourceId);
+  return idx >= 0 ? idx : sourceId;
+}
+
+/** Convert all sourceIds to current array indices (for selectedPageIndices). */
+function sourceIdsToArrayIds(sourceIds: number[], pages: PageMetadata[]): number[] {
+  return sourceIds.map((sid) => sourceIdToDisplayIndex(sid, pages)).filter((i) => i >= 0 && i < pages.length);
+}
+
 function normalizePageSelection(pageIndices: number[], pageCount: number) {
   const uniqueSorted = [...new Set(pageIndices)]
     .filter((pageIndex) => pageIndex >= 0 && pageIndex < pageCount)
@@ -374,13 +448,15 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       preferredPresetAnchor: state.preferredPresetAnchor,
       templates: state.templates,
       selectedTemplateId: state.selectedTemplateId,
+      onboardingCompleted: state.onboardingCompleted,
+      onboardingStep: state.onboardingStep,
     })),
   setPages: (pages) =>
     set({
       pages,
       pageCount: pages.length,
-      selectedPageIndices: pages.length > 0 ? [0] : [],
-      selectionAnchorPageIndex: pages.length > 0 ? 0 : null,
+      selectedPageIndices: pages.length > 0 ? [pages[0].sourceId] : [],
+      selectionAnchorPageIndex: pages.length > 0 ? pages[0].sourceId : null,
       documentLoadState: pages.length > 0 ? "ready" : "idle",
       documentLoadProgress: null,
     }),
@@ -398,6 +474,16 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
     set({
       currentPageIndex: pageIndex,
       selectionAnchorPageIndex: pageIndex,
+    }),
+  rotatePage: (pageIndex, degrees) =>
+    set((state) => {
+      const page = state.pages.find((p) => p.pageIndex === pageIndex);
+      if (!page) return {};
+      const newUserRotation = normalizeRotation(page.userRotation + degrees);
+      const newPages = state.pages.map((p) =>
+        p.pageIndex === pageIndex ? { ...p, userRotation: newUserRotation } : p,
+      );
+      return { pages: newPages };
     }),
   toggleSelectedPage: (pageIndex, multiSelect = false, rangeSelect = false) =>
     set((state) => {
@@ -495,7 +581,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
   setPageCropRect: (pageIndex, cropRect, options) =>
     set((state) => {
       const current = state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex);
-      const page = state.pages.find((item) => item.pageIndex === pageIndex);
+      const page = resolvePageByStoreId(pageIndex, state.pages);
       const nextPast =
         options?.commitHistory === false
           ? state.past
@@ -573,7 +659,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         return nextState;
       }
 
-      const page = state.pages.find((item) => item.pageIndex === pageIndex);
+      const page = resolvePageByStoreId(pageIndex, state.pages);
       const current = state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex);
       const marginsPt = page
         ? cropRectToMargins(state.draftCropRect, page.widthPt, page.heightPt)
@@ -619,7 +705,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       const nextPageCrops = { ...state.pageCrops };
 
       for (const pageIndex of targetPageIndices) {
-        const page = state.pages.find((item) => item.pageIndex === pageIndex);
+        const page = resolvePageByStoreId(pageIndex, state.pages);
 
         if (!page) {
           continue;
@@ -700,14 +786,57 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
   setLastAction: (action) => set({ lastAction: action }),
   setLastUndoneAction: (action) => set({ lastUndoneAction: action }),
   setPreviewOpen: (previewOpen) => set({ previewOpen }),
+  setPrintPreviewOpen: (printPreviewOpen) => set({ printPreviewOpen }),
   setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
+  setShortcutSettingsOpen: (shortcutSettingsOpen) => set({ shortcutSettingsOpen }),
+  setViewMode: (viewMode: "crop" | "split") => set({ viewMode }),
+  setSidebarWidth: (width) => {
+    set({ sidebarWidth: Math.max(200, Math.min(500, width)) });
+    persistPreferences(get());
+  },
+  setPropertiesPanelWidth: (width) => {
+    set({ propertiesPanelWidth: Math.max(240, Math.min(480, width)) });
+    persistPreferences(get());
+  },
+  setSidebarCollapsed: (collapsed) => {
+    set({ sidebarCollapsed: collapsed });
+    persistPreferences(get());
+  },
+  setPropertiesPanelCollapsed: (collapsed) => {
+    set({ propertiesPanelCollapsed: collapsed });
+    persistPreferences(get());
+  },
   setExportInProgress: (exportInProgress) => set({ exportInProgress }),
-  setTheme: (theme) => {
-    set({ theme });
+  setOnboardingCompleted: (onboardingCompleted) => {
+    set({ onboardingCompleted });
+    persistPreferences(get());
+  },
+  setOnboardingStep: (onboardingStep) => {
+    set({ onboardingStep: Math.max(0, onboardingStep) });
+    persistPreferences(get());
+  },
+  setThemeName: (themeName) => {
+    set({ themeName });
     persistPreferences(get());
   },
   setLastExportSettings: (scope, mode) => {
     set({ lastExportScope: scope, lastExportMode: mode });
+    persistPreferences(get());
+  },
+  setKeyBindings: (bindings) => {
+    set({ keyBindings: bindings });
+    persistPreferences(get());
+  },
+  setRecentFiles: (recentFiles) => {
+    set({ recentFiles });
+    persistPreferences(get());
+  },
+  addRecentFile: (file) => {
+    set((state) => {
+      const filtered = state.recentFiles.filter((f) => f.path !== file.path);
+      const next = [file, ...filtered].slice(0, MAX_RECENT_FILES);
+      return { recentFiles: next };
+    });
     persistPreferences(get());
   },
   clearPageCrop: (pageIndex) =>
@@ -773,7 +902,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       const nextPageCrops = { ...state.pageCrops };
 
       for (const pageIndex of targetPageIndices) {
-        const page = state.pages.find((item) => item.pageIndex === pageIndex);
+        const page = resolvePageByStoreId(pageIndex, state.pages);
         if (!page) continue;
 
         const sourceRect = clipboard.cropRect!;
@@ -890,7 +1019,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       const nextPageCrops = { ...state.pageCrops };
 
       for (const pageIndex of targetPageIndices) {
-        const page = state.pages.find((item) => item.pageIndex === pageIndex);
+        const page = resolvePageByStoreId(pageIndex, state.pages);
         if (!page) {
           continue;
         }
@@ -920,7 +1049,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         return state;
       }
 
-      const page = state.pages.find((item) => item.pageIndex === pageIndex);
+      const page = resolvePageByStoreId(pageIndex, state.pages);
       if (!page) return state;
 
       const rect = current.cropRect;
@@ -958,21 +1087,29 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
     }),
   selectAllPages: () =>
     set((state) => ({
-      selectedPageIndices: Array.from({ length: state.pageCount }, (_, i) => i),
-      selectionAnchorPageIndex: state.pageCount > 0 ? 0 : null,
+      selectedPageIndices: state.pages.map((page) => page.sourceId),
+      selectionAnchorPageIndex: state.pages.length > 0 ? state.pages[0].sourceId : null,
     })),
   goToPrevPage: () =>
-    set((state) => ({
-      currentPageIndex: Math.max(0, state.currentPageIndex - 1),
-      selectedPageIndices: [Math.max(0, state.currentPageIndex - 1)],
-      selectionAnchorPageIndex: Math.max(0, state.currentPageIndex - 1),
-    })),
+    set((state) => {
+      const newIdx = Math.max(0, state.currentPageIndex - 1);
+      const newPage = state.pages[newIdx];
+      return {
+        currentPageIndex: newIdx,
+        selectedPageIndices: newPage ? [newPage.sourceId] : state.selectedPageIndices,
+        selectionAnchorPageIndex: newPage ? newPage.sourceId : state.selectionAnchorPageIndex,
+      };
+    }),
   goToNextPage: () =>
-    set((state) => ({
-      currentPageIndex: Math.min(state.pageCount - 1, state.currentPageIndex + 1),
-      selectedPageIndices: [Math.min(state.pageCount - 1, state.currentPageIndex + 1)],
-      selectionAnchorPageIndex: Math.min(state.pageCount - 1, state.currentPageIndex + 1),
-    })),
+    set((state) => {
+      const newIdx = Math.min(state.pageCount - 1, state.currentPageIndex + 1);
+      const newPage = state.pages[newIdx];
+      return {
+        currentPageIndex: newIdx,
+        selectedPageIndices: newPage ? [newPage.sourceId] : state.selectedPageIndices,
+        selectionAnchorPageIndex: newPage ? newPage.sourceId : state.selectionAnchorPageIndex,
+      };
+    }),
   clearDraftCrop: () =>
     set({
       activeDragState: {
@@ -983,6 +1120,27 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       draftCropRect: null,
       activeSnapGuides: [],
     }),
+  restoreOriginalOrder: () =>
+    set((state) => {
+      if (state.pages.length === 0) return {};
+      const sorted = [...state.pages].sort((a, b) => a.sourceId - b.sourceId);
+      if (state.pages.every((p, i) => p.sourceId === sorted[i].sourceId)) return {};
+      const currentSourceId = state.pages[state.currentPageIndex]?.sourceId;
+      const newCurrentIndex = currentSourceId !== undefined
+        ? sorted.findIndex((p) => p.sourceId === currentSourceId)
+        : 0;
+      return {
+        pages: sorted,
+        currentPageIndex: newCurrentIndex >= 0 ? newCurrentIndex : 0,
+        selectedPageIndices: sorted.map((p) => p.sourceId),
+        selectionAnchorPageIndex: currentSourceId ?? sorted[0]?.sourceId ?? null,
+      };
+    }),
+  isOrderModified: () => {
+    const { pages } = get();
+    if (pages.length === 0) return false;
+    return !pages.every((p, i) => p.sourceId === i);
+  },
 }));
 
 function clampCropRect(

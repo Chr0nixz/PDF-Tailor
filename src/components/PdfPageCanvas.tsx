@@ -7,6 +7,8 @@ interface PdfPageCanvasProps {
   pageIndex: number;
   zoom: number;
   children?: ReactNode;
+  /** User rotation in degrees (0, 90, 180, 270). Added to the PDF's intrinsic rotation. */
+  userRotation?: number;
 }
 
 interface CanvasSize {
@@ -19,6 +21,7 @@ export function PdfPageCanvas({
   pageIndex,
   zoom,
   children,
+  userRotation,
 }: PdfPageCanvasProps) {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -73,7 +76,8 @@ export function PdfPageCanvas({
       }
 
       try {
-        const viewport = page.getViewport({ scale: zoom });
+        const totalRotation = (userRotation ?? 0) + page.rotate;
+        const viewport = page.getViewport({ scale: zoom, rotation: totalRotation });
         const outputScale = window.devicePixelRatio || 1;
         const context = canvas.getContext("2d");
 
@@ -133,7 +137,7 @@ export function PdfPageCanvas({
       pageRef.current?.cleanup();
       pageRef.current = null;
     };
-  }, [documentProxy, pageIndex, zoom]);
+  }, [documentProxy, pageIndex, zoom, userRotation]);
 
   return (
     <div

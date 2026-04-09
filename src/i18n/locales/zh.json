@@ -4,6 +4,10 @@
     "version": "v1.x",
     "dismissHint": "关闭提示"
   },
+  "settings": {
+    "theme": "主题",
+    "keyboardShortcuts": "快捷键设置"
+  },
   "onboarding": {
     "stepLabel": "第 {{current}} 步，共 {{total}} 步",
     "skip": "跳过",
@@ -31,10 +35,16 @@
     "openPdf": "打开 PDF",
     "close": "关闭",
     "preview": "预览",
+    "splitView": "分屏",
     "exporting": "导出中...",
     "export": "导出",
     "undo": "撤销",
-    "redo": "重做"
+    "redo": "重做",
+    "save": "保存",
+    "settings": "设置",
+    "zoom": "缩放",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
   },
   "history": {
     "action": {
@@ -57,41 +67,10 @@
     "dragOrDrop": "或把文件拖到这个区域",
     "selectPdf": "选择 PDF"
   },
-  "export": {
-    "title": "导出",
-    "subtitle": "生成新的 PDF 文件",
-    "scopedCropInfo": "当前导出范围内有 {{count}} 页已经设置裁剪。",
-    "noCropInfo": "当前导出范围没有裁剪设置，导出结果会保持原始页面。",
-    "scopeLabel": "导出范围",
-    "currentPage": "当前页",
-    "currentPageDesc": "仅导出第 {{page}} 页。",
-    "selectedPages": "选中页",
-    "selectedPagesDesc": "当前已选 {{count}} 页。",
-    "allPages": "全部页面",
-    "allPagesDesc": "整份文档共 {{count}} 页。",
-    "rotatedCropWarning": "检测到旋转裁剪页：{{list}}。当前选择下 `Redraw` 导出已禁用，因为现有重绘链路还不能安全映射 90°/270° 页面的坐标。",
-    "fileNameLabel": "文件名",
-    "exportModeLabel": "导出模式",
-    "cropBoxDesc": "速度更快，只修改页面的 crop/media box，不重绘页面内容。",
-    "redrawDesc": "以裁剪框大小重建新页面，更适合后续打印或继续处理。",
-    "redrawBlockedHint": "旋转裁剪页暂不支持",
-    "preparingExport": "正在准备导出...",
-    "exportingProgress": "正在处理第 {{current}} / {{total}} 页...",
-    "savingFinalPdf": "正在保存最终 PDF...",
-    "exportDone": "导出完成。",
-    "exportCancelled": "导出已取消。",
-    "pleaseOpenPdfFirst": "请先打开 PDF 再导出。",
-    "rotatedCropExportError": "当前选中的旋转裁剪页（{{list}}）暂不支持重绘导出，请改用 Crop box 模式。",
-    "invalidCropBox": "存在无效裁剪框，请调整后再导出。",
-    "exportFailed": "导出任务执行失败。",
-    "cancel": "取消",
-    "cancelExport": "取消导出",
-    "exportPdf": "导出 PDF",
-    "preview": "预览",
-    "summary": "摘要",
-    "summaryOutputPages": "输出页数",
-    "summaryCroppedPages": "裁剪页数",
-    "summaryEstSize": "预估大小"
+  "printPreview": {
+    "title": "打印预览",
+    "print": "打印",
+    "printReady": "准备打印"
   },
   "preview": {
     "title": "预览",
@@ -120,6 +99,9 @@
     "currentSelection": "当前选区",
     "noCropRect": "尚未创建裁剪框",
     "cropModeLabel": "裁剪模式",
+    "rotationLabel": "页面旋转",
+    "rotateCw": "顺时针",
+    "rotateCcw": "逆时针",
     "templateLabel": "模板",
     "new": "新建",
     "savedTemplates": "已保存模板",
@@ -137,7 +119,23 @@
     "marginBottom": "下边距",
     "marginLeft": "左边距",
     "marginHint": "预设纸张、九宫格定位和数值边距已经联动。你可以先在当前页调整，再批量应用到选中页或整份文档。",
-    "applyAll": "应用到全部页面 ({{count}})"
+    "applyAll": "应用到全部页面 ({{count}})",
+    "expand": "展开",
+    "collapse": "收起",
+    "batchRulesLabel": "批量选择",
+    "batchRuleLabel": "当前选择",
+    "batchRuleValue": "已选 {{count}} 页",
+    "batchRulesExpandedHint": "「每 N 页」从第 1 页开始每 N 页选一页。"
+  },
+  "autoCrop": {
+    "label": "自动检测",
+    "auto": "自动裁边",
+    "autoMargin": "自动裁边+留白",
+    "hint": "检测扫描文档的内容边界。",
+    "autoHint": "自动检测内容并裁剪",
+    "autoMarginHint": "自动检测并留出边距",
+    "applied": "已应用到 {{count}} 页",
+    "lowConfidence": "第 {{page}} 页置信度低，请手动调整"
   },
   "cropMode": {
     "free": "自由框选",
@@ -174,7 +172,10 @@
     "invalidRange": "请输入类似 1-5、8、10-12 的页码范围。",
     "invalidRangeSegment": "页码范围无效：\"{{segment}}\"。",
     "invalidPageNum": "页码无效：\"{{segment}}\"。",
-    "pageOutOfRange": "页码 {{page}} 超出 1-{{total}} 范围。"
+    "pageOutOfRange": "页码 {{page}} 超出 1-{{total}} 范围。",
+    "orderModifiedHint": "顺序已修改，导出跟随侧边栏",
+    "restoreOrder": "恢复顺序",
+    "expand": "展开侧边栏"
   },
   "workspace": {
     "title": "画布",
@@ -182,6 +183,8 @@
     "fitWidth": "适应宽度",
     "fitPage": "适应页面",
     "zoomLabel": "缩放 {{percent}}%",
+    "toggleLeftSidebar": "隐藏/显示左侧栏",
+    "toggleRightSidebar": "隐藏/显示右侧栏",
     "loadingPdf": "正在加载 PDF...",
     "preparingPages": "正在准备页面",
     "pageBadge": "第 {{page}} 页",
@@ -198,10 +201,13 @@
     "thumbnail": "缩略图",
     "error": "缩略图加载失败",
     "altText": "第 {{page}} 页缩略图",
+    "dragHandle": "拖动以重新排序页面",
     "context": {
       "copyCrop": "复制裁剪",
       "pasteCrop": "粘贴裁剪",
       "clearCrop": "清除裁剪",
+      "rotateCw": "顺时针旋转",
+      "rotateCcw": "逆时针旋转",
       "selectAll": "全选页面"
     }
   },
@@ -219,5 +225,102 @@
     "unknownError": "Unknown export error",
     "invalidCropDimensions": "第 {{page}} 页的裁剪尺寸无效。",
     "redrawRotatedNotSupported": "Redraw 导出暂不支持带裁剪框的旋转页（第 {{page}} 页），请改用 Crop box 模式。"
+  },
+  "toast": {
+    "shortcutsSaved": "快捷键已保存。",
+    "settingsRestored": "设置已恢复默认。"
+  },
+  "shortcuts": {
+    "title": "快捷键设置",
+    "groupEdit": "编辑",
+    "groupView": "视图与缩放",
+    "groupNavigate": "导航",
+    "groupNudge": "微调裁剪",
+    "groupOther": "其他",
+    "undo": "撤销",
+    "redo": "重做",
+    "export": "导出 PDF",
+    "copyCrop": "复制裁剪",
+    "pasteCrop": "粘贴裁剪",
+    "selectAll": "全选页面",
+    "applyCrop": "应用裁剪到选中页",
+    "zoomReset": "重置缩放",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "clearCrop": "清除裁剪",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "togglePreview": "切换预览",
+    "nudgeUp": "裁剪向上微调",
+    "nudgeDown": "裁剪向下微调",
+    "nudgeLeft": "裁剪向左微调",
+    "nudgeRight": "裁剪向右微调",
+    "restoreOrder": "恢复原始页面顺序",
+    "pressKey": "请按键...",
+    "restoreDefaults": "恢复默认",
+    "noCustom": "使用默认快捷键"
+  },
+  "rules": {
+    "labelOdd": "奇数页",
+    "labelEven": "偶数页",
+    "labelSameSize": "相同尺寸",
+    "labelSameRotation": "相同旋转",
+    "labelRange": "第 {{start}}-{{end}} 页",
+    "labelEveryN": "每 {{step}} 页 (从 #{{offset}})",
+    "appliedTo": "已选中 {{count}} 页",
+    "noPagesMatch": "没有页面符合此规则。"
+  },
+  "splitView": {
+    "original": "原始",
+    "cropped": "已裁剪",
+    "adjustSplit": "调整分割比例",
+    "noCropYet": "当前页尚未设置裁剪"
+  },
+  "diagnostics": {
+    "title": "文档诊断",
+    "noIssues": "未检测到问题。",
+    "rotatedPages": "{{count}} 个旋转页：{{list}}",
+    "mixedSizePages": "{{count}} 个非标准尺寸页：{{list}}",
+    "uncroppedPages": "{{count}} 个未裁剪页",
+    "largeDocument": "大文档（{{count}} 页）",
+    "jumpToPage": "跳转到第 {{page}} 页",
+    "showAll": "显示全部"
+  },
+  "export": {
+    "openLocation": "打开所在目录",
+    "title": "导出",
+    "subtitle": "生成新的 PDF 文件",
+    "scopedCropInfo": "当前导出范围内有 {{count}} 页已经设置裁剪。",
+    "noCropInfo": "当前导出范围没有裁剪设置，导出结果会保持原始页面。",
+    "scopeLabel": "导出范围",
+    "currentPage": "当前页",
+    "currentPageDesc": "仅导出第 {{page}} 页。",
+    "selectedPages": "选中页",
+    "selectedPagesDesc": "当前已选 {{count}} 页。",
+    "allPages": "全部页面",
+    "allPagesDesc": "整份文档共 {{count}} 页。",
+    "rotatedCropWarning": "检测到旋转裁剪页：{{list}}。当前选择下 `Redraw` 导出已禁用，因为现有重绘链路还不能安全映射 90°/270° 页面的坐标。",
+    "fileNameLabel": "文件名",
+    "exportModeLabel": "导出模式",
+    "cropBoxDesc": "速度更快，只修改页面的 crop/media box，不重绘页面内容。",
+    "redrawDesc": "以裁剪框大小重建新页面，更适合后续打印或继续处理。",
+    "redrawBlockedHint": "旋转裁剪页暂不支持",
+    "preparingExport": "正在准备导出...",
+    "exportingProgress": "正在处理第 {{current}} / {{total}} 页...",
+    "savingFinalPdf": "正在保存最终 PDF...",
+    "exportDone": "导出完成。",
+    "exportCancelled": "导出已取消。",
+    "pleaseOpenPdfFirst": "请先打开 PDF 再导出。",
+    "rotatedCropExportError": "当前选中的旋转裁剪页（{{list}}）暂不支持重绘导出，请改用 Crop box 模式。",
+    "invalidCropBox": "存在无效裁剪框，请调整后再导出。",
+    "exportFailed": "导出任务执行失败。",
+    "cancel": "取消",
+    "cancelExport": "取消导出",
+    "exportPdf": "导出 PDF",
+    "preview": "预览",
+    "summary": "摘要",
+    "summaryOutputPages": "输出页数",
+    "summaryCroppedPages": "裁剪页数",
+    "summaryEstSize": "预估大小"
   }
 }

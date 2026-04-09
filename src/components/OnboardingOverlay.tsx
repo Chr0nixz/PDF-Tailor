@@ -1,23 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Spotlight } from "@/components/Spotlight";
-
-const STORAGE_KEY = "pdf-tailor-onboarding-completed";
-
-function isOnboardingCompleted() {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem(STORAGE_KEY) === "true";
-}
-
-function setOnboardingCompleted(value: boolean) {
-  localStorage.setItem(STORAGE_KEY, String(value));
-}
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { usePdfStore } from "@/store/usePdfStore";
 
 interface Step {
   id: string;
   title: string;
   description: string;
-  target: string; // CSS selector or special key
+  targets: string[];
 }
 
 const STEPS: Step[] = [
@@ -25,51 +16,92 @@ const STEPS: Step[] = [
     id: "open-pdf",
     title: "onboarding.step1Title",
     description: "onboarding.step1Desc",
-    target: "[data-testid='dropzone']",
+    targets: [
+      "[data-testid='choose-pdf-button']",
+      "[data-testid='open-pdf-button']",
+      "[data-testid='dropzone']",
+    ],
   },
   {
     id: "draw-crop",
     title: "onboarding.step2Title",
     description: "onboarding.step2Desc",
-    target: "[data-testid='crop-layer']",
+    targets: ["[data-testid='workspace-viewport']", "#tab-workspace", "[data-testid='dropzone']"],
   },
   {
     id: "batch-apply",
     title: "onboarding.step3Title",
     description: "onboarding.step3Desc",
-    target: "[data-testid='page-thumbnail-0']",
+    targets: ["[data-testid='page-thumbnail-0']", "#tab-pages"],
   },
   {
     id: "preview",
     title: "onboarding.step4Title",
     description: "onboarding.step4Desc",
-    target: "button[aria-label='Preview'], button:has-text('Preview')",
+    targets: ["[data-testid='preview-button']"],
   },
   {
     id: "export",
     title: "onboarding.step5Title",
     description: "onboarding.step5Desc",
-    target: "button[aria-label='Export'], button:has-text('Export')",
+    targets: ["[data-testid='export-button']"],
   },
 ];
 
-function findElement(selector: string): HTMLElement | null {
-  return document.querySelector(selector);
+function isElementVisible(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    style.display !== "none" &&
+    style.visibility !== "hidden"
+  );
+}
+
+function findElement(selectors: string[]): HTMLElement | null {
+  for (const selector of selectors) {
+    const element = document.querySelector<HTMLElement>(selector);
+    if (element && isElementVisible(element)) {
+      return element;
+    }
+  }
+
+  return null;
 }
 
 export function OnboardingOverlay() {
   const { t } = useTranslation();
-  const [completed, setCompleted] = useState(() => isOnboardingCompleted());
-  const [currentStep, setCurrentStep] = useState(0);
+  const completed = usePdfStore((state) => state.onboardingCompleted);
+  const setCompleted = usePdfStore((state) => state.setOnboardingCompleted);
+  const currentStep = usePdfStore((state) => state.onboardingStep);
+  const setCurrentStep = usePdfStore((state) => state.setOnboardingStep);
+  const fileName = usePdfStore((state) => state.fileName);
+  const pageCount = usePdfStore((state) => state.pageCount);
+  const documentLoadState = usePdfStore((state) => state.documentLoadState);
   const [visible, setVisible] = useState(false);
-  const [targetRef, setTargetRef] = useState<React.RefObject<HTMLElement | null>>({ current: null });
+  const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
   const stepRef = useRef<HTMLDivElement>(null);
+  const targetRef = useMemo(() => ({ current: targetElement }), [targetElement]);
+  const hasReadyDocument = Boolean(fileName) && pageCount > 0 && documentLoadState === "ready";
+  const canShowCurrentStep = currentStep === 0 || hasReadyDocument;
+  useFocusTrap(stepRef, visible && !completed);
 
   useEffect(() => {
-    if (completed) return;
-    const timer = setTimeout(() => setVisible(true), 800);
+    if (completed) {
+      setVisible(false);
+      return;
+    }
+
+    if (!canShowCurrentStep) {
+      setVisible(false);
+      return;
+    }
+
+    const timer = setTimeout(() => setVisible(true), currentStep === 0 ? 800 : 250);
     return () => clearTimeout(timer);
-  }, [completed]);
+  }, [completed, canShowCurrentStep, currentStep]);
 
   useEffect(() => {
     if (!visible || completed) return;
@@ -77,50 +109,100 @@ export function OnboardingOverlay() {
     const step = STEPS[currentStep];
     if (!step) return;
 
-    const el = findElement(step.target);
-    if (el) {
-      setTargetRef({ current: el });
-    }
+    let frameId: number | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Scroll the target into view
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [visible, currentStep, completed]);
+    const updateTarget = () => {
+      const nextTarget = findElement(step.targets);
+      setTargetElement((currentTarget) => {
+        if (currentTarget === nextTarget) {
+          return currentTarget;
+        }
 
-  const handleNext = () => {
+        if (nextTarget) {
+          nextTarget.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "nearest",
+          });
+        }
+
+        return nextTarget;
+      });
+    };
+
+    updateTarget();
+
+    // Poll instead of observing full document.body mutations
+    // Observing { subtree: true } on body fires on every React re-render
+    pollTimer = setInterval(updateTarget, 250);
+
+    window.addEventListener("resize", updateTarget);
+
+    return () => {
+      if (pollTimer !== null) clearInterval(pollTimer);
+      window.removeEventListener("resize", updateTarget);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
+  }, [visible, completed, currentStep, fileName, pageCount, documentLoadState]);
+
+  const handleNext = useCallback(() => {
     if (currentStep < STEPS.length - 1) {
-      setCurrentStep((s) => s + 1);
+      const nextStep = currentStep + 1;
+      setCurrentStep(nextStep);
+
+      if (nextStep > 0 && !hasReadyDocument) {
+        setVisible(false);
+      }
     } else {
       setVisible(false);
+      setCurrentStep(0);
       setCompleted(true);
-      setOnboardingCompleted(true);
     }
-  };
+  }, [currentStep, hasReadyDocument, setCompleted, setCurrentStep]);
 
-  const handleSkip = () => {
+  const handleSkip = useCallback(() => {
     setVisible(false);
+    setCurrentStep(0);
     setCompleted(true);
-    setOnboardingCompleted(true);
-  };
+  }, [setCompleted, setCurrentStep]);
+
+  useEffect(() => {
+    if (!visible || completed) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        handleSkip();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [visible, completed, handleSkip]);
 
   if (completed || !visible) return null;
 
   const step = STEPS[currentStep];
   const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const titleId = `onboarding-step-title-${step.id}`;
+  const descriptionId = `onboarding-step-description-${step.id}`;
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-end justify-center"
+      className="pointer-events-none fixed inset-0 z-[200] flex items-end justify-center"
       aria-live="polite"
     >
-      {targetRef.current && <Spotlight targetRef={targetRef} padding={12} />}
+      {targetElement ? <Spotlight targetRef={targetRef} padding={12} /> : null}
 
-      {/* Card */}
       <div
         ref={stepRef}
-        className="panel-surface mb-12 mr-12 max-w-sm rounded-[24px] border border-ink/12 p-6 shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        className="panel-surface pointer-events-auto mb-12 mr-12 max-w-sm rounded-[24px] border border-ink/12 p-6 shadow-2xl"
         style={{ position: "fixed", bottom: "3rem", right: "3rem", zIndex: 201 }}
       >
-        {/* Progress bar */}
         <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
           <div
             className="h-full rounded-full bg-sky transition-all duration-300 dark:bg-sky-dark"
@@ -128,18 +210,15 @@ export function OnboardingOverlay() {
           />
         </div>
 
-        {/* Step indicator */}
         <div className="mb-3 text-[10px] uppercase tracking-[0.2em] text-ink/45 dark:text-ink-light/45">
           {t("onboarding.stepLabel", { current: currentStep + 1, total: STEPS.length })}
         </div>
 
         <div className="mb-4">
-          <div className="mb-2 text-xl font-semibold text-ink dark:text-ink-light">
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <div id={titleId} className="mb-2 text-xl font-semibold text-ink dark:text-ink-light">
             {(t as any)(step.title)}
           </div>
-          <div className="text-sm leading-relaxed text-ink/60 dark:text-ink-light/55">
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <div id={descriptionId} className="text-sm leading-relaxed text-ink/60 dark:text-ink-light/55">
             {(t as any)(step.description)}
           </div>
         </div>

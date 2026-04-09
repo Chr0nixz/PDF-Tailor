@@ -1,3 +1,5 @@
+export type ThemeName = "paper" | "midnight" | "warm" | "high-contrast";
+
 export type PdfUnit = "pt" | "mm";
 
 export type CropMode = "free" | "preset";
@@ -56,10 +58,14 @@ export interface PaperSize {
 }
 
 export interface PageMetadata {
+  /** Source PDF page number (0-based, immutable after creation). */
+  sourceId: number;
+  /** @deprecated Use `sourceId` instead. Always equals `sourceId` — kept for backwards compat. */
   pageIndex: number;
   widthPt: number;
   heightPt: number;
   rotation: number;
+  userRotation: number;
 }
 
 export interface PageMargins {

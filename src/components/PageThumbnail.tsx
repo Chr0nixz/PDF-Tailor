@@ -36,6 +36,7 @@ export const PageThumbnail = memo(function PageThumbnail({
   const pasteCropToPages = usePdfStore((s) => s.pasteCropToPages);
   const clearPageCrops = usePdfStore((s) => s.clearPageCrops);
   const selectAllPages = usePdfStore((s) => s.selectAllPages);
+  const rotatePage = usePdfStore((s) => s.rotatePage);
   const { open } = useContextMenu();
 
   const handleContextMenu = (e: MouseEvent<HTMLButtonElement>) => {
@@ -59,6 +60,14 @@ export const PageThumbnail = memo(function PageThumbnail({
         action: () => clearPageCrops([page.pageIndex]),
       },
       { divider: true },
+      {
+        label: t("thumbnail.context.rotateCw"),
+        action: () => rotatePage(page.pageIndex, 90),
+      },
+      {
+        label: t("thumbnail.context.rotateCcw"),
+        action: () => rotatePage(page.pageIndex, -90),
+      },
       {
         label: t("thumbnail.context.selectAll"),
         shortcut: "Ctrl+A",
@@ -94,6 +103,7 @@ export const PageThumbnail = memo(function PageThumbnail({
     <button
       ref={ref}
       type="button"
+      data-testid={`page-thumbnail-${page.pageIndex}`}
       onClick={onSelect}
       onContextMenu={handleContextMenu}
       aria-pressed={isSelected}
@@ -116,15 +126,11 @@ export const PageThumbnail = memo(function PageThumbnail({
               {t("thumbnail.cropped")}
             </span>
           ) : null}
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] ${
-              isSelected
-                ? "bg-pine text-white dark:bg-pine-dark"
-                : "bg-ink/5 text-ink/45 dark:bg-white/5 dark:text-ink-light/45"
-            }`}
-          >
-            {isSelected ? t("thumbnail.selected") : t("thumbnail.ready")}
-          </span>
+          {isSelected ? (
+            <span className="rounded-full bg-pine px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-white dark:bg-pine-dark">
+              {t("thumbnail.selected")}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="subtle-grid mt-4 flex h-40 items-center justify-center rounded-[18px] border border-dashed border-ink/10 bg-panel p-3 dark:border-white/10 dark:bg-panel-dark">
@@ -132,7 +138,8 @@ export const PageThumbnail = memo(function PageThumbnail({
           <img
             src={thumbnail.dataUrl}
             alt={t("thumbnail.altText", { page: page.pageIndex + 1 })}
-            className="max-h-full rounded-[12px] border border-ink/10 bg-paper shadow-sm dark:border-white/10 dark:bg-paper-dark dark:shadow-none"
+            className="max-h-full rounded-[12px] border border-ink/10 bg-paper shadow-sm transition-transform dark:border-white/10 dark:bg-paper-dark dark:shadow-none"
+            style={{ transform: page.userRotation ? `rotate(${page.userRotation}deg)` : undefined }}
           />
         ) : thumbnail?.status === "error" ? (
           <div className="rounded-[14px] border border-ember/15 bg-white/85 px-4 py-6 text-center text-xs text-ember dark:border-ember-dark/15 dark:bg-white/5 dark:text-ember-dark">

@@ -4,6 +4,10 @@
     "version": "v1.x",
     "dismissHint": "Dismiss"
   },
+  "settings": {
+    "theme": "Theme",
+    "keyboardShortcuts": "Keyboard Shortcuts"
+  },
   "onboarding": {
     "stepLabel": "Step {{current}} of {{total}}",
     "skip": "Skip",
@@ -31,10 +35,16 @@
     "openPdf": "Open PDF",
     "close": "Close",
     "preview": "Preview",
+    "splitView": "Split View",
     "exporting": "Exporting...",
     "export": "Export",
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "save": "Save",
+    "settings": "Settings",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
   },
   "history": {
     "action": {
@@ -91,7 +101,13 @@
     "summary": "Summary",
     "summaryOutputPages": "Output pages",
     "summaryCroppedPages": "Cropped pages",
-    "summaryEstSize": "Est. size"
+    "summaryEstSize": "Est. size",
+    "openLocation": "Open location"
+  },
+  "printPreview": {
+    "title": "PRINT PREVIEW",
+    "print": "Print",
+    "printReady": "Print ready"
   },
   "preview": {
     "title": "PREVIEW",
@@ -120,6 +136,9 @@
     "currentSelection": "Current Selection",
     "noCropRect": "No crop box created yet",
     "cropModeLabel": "Crop Mode",
+    "rotationLabel": "Page Rotation",
+    "rotateCw": "Clockwise",
+    "rotateCcw": "Counterclockwise",
     "templateLabel": "Template",
     "new": "New",
     "savedTemplates": "Saved Templates",
@@ -137,7 +156,23 @@
     "marginBottom": "Bottom Margin",
     "marginLeft": "Left Margin",
     "marginHint": "Preset paper sizes, 9-grid positioning, and numeric margins are linked together. Adjust on the current page first, then batch apply to selected pages or the entire document.",
-    "applyAll": "Apply to All Pages ({{count}})"
+    "applyAll": "Apply to All Pages ({{count}})",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "batchRulesLabel": "BATCH SELECT",
+    "batchRuleLabel": "Selection",
+    "batchRuleValue": "{{count}} page(s) selected",
+    "batchRulesExpandedHint": "Every N selects every Nth page starting from position 1."
+  },
+  "autoCrop": {
+    "label": "AUTO DETECT",
+    "auto": "Auto Crop",
+    "autoMargin": "Auto Crop + Margin",
+    "hint": "Detects content boundaries on scanned documents.",
+    "autoHint": "Auto-detect content and crop",
+    "autoMarginHint": "Auto-detect with 12pt margin",
+    "applied": "Crop applied to {{count}} page(s)",
+    "lowConfidence": "Low confidence on page {{page}} — please review"
   },
   "cropMode": {
     "free": "Free",
@@ -174,7 +209,10 @@
     "invalidRange": "Enter a page range like 1-5, 8, 10-12.",
     "invalidRangeSegment": "Invalid page range: \"{{segment}}\".",
     "invalidPageNum": "Invalid page number: \"{{segment}}\".",
-    "pageOutOfRange": "Page {{page}} is out of range (1-{{total}})."
+    "pageOutOfRange": "Page {{page}} is out of range (1-{{total}}).",
+    "orderModifiedHint": "Order modified — export follows sidebar",
+    "restoreOrder": "Restore Order",
+    "expand": "Expand sidebar"
   },
   "workspace": {
     "title": "CANVAS",
@@ -182,6 +220,8 @@
     "fitWidth": "Fit Width",
     "fitPage": "Fit Page",
     "zoomLabel": "Zoom {{percent}}%",
+    "toggleLeftSidebar": "Toggle left sidebar",
+    "toggleRightSidebar": "Toggle right sidebar",
     "loadingPdf": "Loading PDF...",
     "preparingPages": "Preparing pages",
     "pageBadge": "Page {{page}}",
@@ -198,10 +238,13 @@
     "thumbnail": "Thumbnail",
     "error": "Failed to load thumbnail",
     "altText": "Thumbnail of page {{page}}",
+    "dragHandle": "Drag to reorder pages",
     "context": {
       "copyCrop": "Copy crop",
       "pasteCrop": "Paste crop",
       "clearCrop": "Clear crop",
+      "rotateCw": "Rotate clockwise",
+      "rotateCcw": "Rotate counterclockwise",
       "selectAll": "Select all pages"
     }
   },
@@ -219,5 +262,65 @@
     "unknownError": "Unknown export error",
     "invalidCropDimensions": "Invalid crop dimensions on page {{page}}.",
     "redrawRotatedNotSupported": "Redraw export does not support rotated pages with crop boxes (page {{page}}). Please use Crop box mode instead."
+  },
+  "toast": {
+    "shortcutsSaved": "Keyboard shortcuts saved.",
+    "settingsRestored": "Settings restored to defaults."
+  },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "groupEdit": "Edit",
+    "groupView": "View & Zoom",
+    "groupNavigate": "Navigation",
+    "groupNudge": "Nudge Crop",
+    "groupOther": "Other",
+    "undo": "Undo",
+    "redo": "Redo",
+    "export": "Export PDF",
+    "copyCrop": "Copy Crop",
+    "pasteCrop": "Paste Crop",
+    "selectAll": "Select All Pages",
+    "applyCrop": "Apply Crop to Selected",
+    "zoomReset": "Reset Zoom",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out",
+    "clearCrop": "Clear Crop",
+    "prevPage": "Previous Page",
+    "nextPage": "Next Page",
+    "togglePreview": "Toggle Preview",
+    "nudgeUp": "Nudge Crop Up",
+    "nudgeDown": "Nudge Crop Down",
+    "nudgeLeft": "Nudge Crop Left",
+    "nudgeRight": "Nudge Crop Right",
+    "restoreOrder": "Restore Original Page Order",
+    "pressKey": "Press a key...",
+    "restoreDefaults": "Restore Defaults",
+    "noCustom": "Using default shortcuts"
+  },
+  "rules": {
+    "labelOdd": "Odd pages",
+    "labelEven": "Even pages",
+    "labelSameSize": "Same size",
+    "labelSameRotation": "Same rotation",
+    "labelRange": "Pages {{start}}-{{end}}",
+    "labelEveryN": "Every {{step}} (from #{{offset}})",
+    "appliedTo": "Selected {{count}} page(s)",
+    "noPagesMatch": "No pages match this rule."
+  },
+  "splitView": {
+    "original": "Original",
+    "cropped": "Cropped",
+    "adjustSplit": "Adjust split ratio",
+    "noCropYet": "No crop set for this page"
+  },
+  "diagnostics": {
+    "title": "Document Diagnostics",
+    "noIssues": "No issues detected.",
+    "rotatedPages": "{{count}} rotated page(s): {{list}}",
+    "mixedSizePages": "{{count}} page(s) with non-standard size: {{list}}",
+    "uncroppedPages": "{{count}} uncropped page(s)",
+    "largeDocument": "Large document ({{count}} pages)",
+    "jumpToPage": "Go to page {{page}}",
+    "showAll": "Show all"
   }
 }

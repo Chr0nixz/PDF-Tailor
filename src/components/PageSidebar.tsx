@@ -18,10 +18,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { DraggablePageThumbnail } from "@/components/DraggablePageThumbnail";
+import { DiagnosticPanel } from "@/components/DiagnosticPanel";
 import { useThumbnails } from "@/hooks/useThumbnails";
 import { usePdfStore } from "@/store/usePdfStore";
 import type { PDFDocumentProxy } from "@/lib/pdfjs";
-import { isQuarterTurnRotation } from "@/utils/documentWarnings";
+import type { PageMetadata } from "@/types";
 
 interface PageSidebarProps {
   documentProxy: PDFDocumentProxy | null;
@@ -103,6 +104,17 @@ function parsePageRangeInput(value: string, pageCount: number) {
   };
 }
 
+function sourceIdsToSelection(sourceIds: number[], pages: PageMetadata[], currentPageIndex: number) {
+  const firstSid = sourceIds[0];
+  const firstDispIdx = firstSid !== undefined
+    ? pages.findIndex((p) => p.sourceId === firstSid)
+    : currentPageIndex;
+  return {
+    currentPageIndex: firstDispIdx,
+    anchorPageIndex: firstSid !== undefined ? firstDispIdx : null,
+  };
+}
+
 function translateError(t: TFunction<"translation", undefined>, error: ParseError) {
   switch (error.key) {
     case "sidebar.invalidRange":
@@ -127,6 +139,8 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   const toggleSelectedPage = usePdfStore((state) => state.toggleSelectedPage);
   const clearPageCrops = usePdfStore((state) => state.clearPageCrops);
   const reorderPages = usePdfStore((state) => state.reorderPages);
+  const restoreOriginalOrder = usePdfStore((state) => state.restoreOriginalOrder);
+  const isOrderModified = usePdfStore((state) => state.isOrderModified);
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [pageRangeInput, setPageRangeInput] = useState("");
   const [pageRangeError, setPageRangeError] = useState<string | null>(null);
@@ -141,6 +155,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+  const [pageRangeExpanded, setPageRangeExpanded] = useState(false);
   const rowVirtualizer = useVirtualizer({
     count: pages.length,
     getScrollElement: () => parentRef.current,
@@ -153,12 +168,12 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
       if (!over || active.id === over.id) {
         return;
       }
-      const parsePageIndex = (id: string | number) =>
+      const parseSourceId = (id: string | number) =>
         Number.parseInt(String(id).replace(/^page-/, ""), 10);
-      const activePageIndex = parsePageIndex(active.id);
-      const overPageIndex = parsePageIndex(over.id);
-      const activeIndex = pages.findIndex((page) => page.pageIndex === activePageIndex);
-      const overIndex = pages.findIndex((page) => page.pageIndex === overPageIndex);
+      const activeSourceId = parseSourceId(active.id);
+      const overSourceId = parseSourceId(over.id);
+      const activeIndex = pages.findIndex((page) => page.sourceId === activeSourceId);
+      const overIndex = pages.findIndex((page) => page.sourceId === overSourceId);
       if (activeIndex !== -1 && overIndex !== -1) {
         reorderPages(activeIndex, overIndex);
       }
@@ -166,26 +181,22 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
     [pages, reorderPages],
   );
   const sortableItems = useMemo(
-    () => pages.map((page) => `page-${page.pageIndex}`),
+    () => pages.map((page) => `page-${page.sourceId}`),
     [pages],
   );
   const croppedPageIndices = useMemo(
     () =>
       pages
-        .filter((page) => Boolean(pageCrops[page.pageIndex]?.cropRect))
-        .map((page) => page.pageIndex),
+        .filter((page) => Boolean(pageCrops[page.sourceId]?.cropRect))
+        .map((page) => page.sourceId),
     [pageCrops, pages],
   );
   const uncroppedPageIndices = useMemo(
     () =>
       pages
-        .filter((page) => !pageCrops[page.pageIndex]?.cropRect)
-        .map((page) => page.pageIndex),
+        .filter((page) => !pageCrops[page.sourceId]?.cropRect)
+        .map((page) => page.sourceId),
     [pageCrops, pages],
-  );
-  const rotatedPageIndices = useMemo(
-    () => pages.filter((page) => isQuarterTurnRotation(page.rotation)).map((page) => page.pageIndex),
-    [pages],
   );
   const selectedCroppedCount = selectedPageIndices.filter(
     (pageIndex) => Boolean(pageCrops[pageIndex]?.cropRect),
@@ -199,9 +210,20 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
     }
 
     setPageRangeError(null);
-    setSelectedPages(parsed.pageIndices, {
-      currentPageIndex: parsed.pageIndices.at(-1) ?? currentPageIndex,
-      anchorPageIndex: parsed.pageIndices[0] ?? null,
+    // parsed.pageIndices are display indices; convert to sourceIds for selectedPageIndices
+    const sourceIds = parsed.pageIndices
+      .map((dispIdx) => pages[dispIdx]?.sourceId)
+      .filter((sid): sid is number => sid !== undefined);
+    const lastSourceId = sourceIds.at(-1);
+    const firstSourceId = sourceIds[0];
+    const lastDisplayIdx = lastSourceId !== undefined
+      ? pages.findIndex((p) => p.sourceId === lastSourceId)
+      : currentPageIndex;
+    setSelectedPages(sourceIds, {
+      currentPageIndex: lastDisplayIdx,
+      anchorPageIndex: firstSourceId !== undefined
+        ? pages.findIndex((p) => p.sourceId === firstSourceId)
+        : null,
     });
   };
 
@@ -216,6 +238,23 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
           {t("sidebar.totalPages", { count: pages.length })}
         </div>
       </div>
+      {isOrderModified() ? (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-[16px] border border-amber/20 bg-amber/10 px-3 py-2 text-xs text-amber dark:border-amber-dark/30 dark:bg-amber-dark/10 dark:text-amber-dark">
+          <span>{t("sidebar.orderModifiedHint")}</span>
+          <button
+            type="button"
+            onClick={restoreOriginalOrder}
+            className="rounded-full border border-amber/30 bg-amber/20 px-2.5 py-1 font-medium transition hover:bg-amber/30 dark:border-amber-dark/40 dark:bg-amber-dark/20 dark:hover:bg-amber-dark/30"
+          >
+            {t("sidebar.restoreOrder")}
+          </button>
+        </div>
+      ) : null}
+      {documentLoadState === "ready" && pages.length > 0 ? (
+        <div className="mb-4">
+          <DiagnosticPanel />
+        </div>
+      ) : null}
       {documentLoadState === "ready" && pages.length > 0 ? (
         <div className="mb-4 rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex items-center justify-between gap-3">
@@ -226,27 +265,21 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               {t("sidebar.selectedCount", { count: selectedPageIndices.length })}
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             <button
               type="button"
-              onClick={() =>
-                setSelectedPages(croppedPageIndices, {
-                  currentPageIndex: croppedPageIndices[0] ?? currentPageIndex,
-                  anchorPageIndex: croppedPageIndices[0] ?? null,
-                })
-              }
+              onClick={() => {
+                setSelectedPages(croppedPageIndices, sourceIdsToSelection(croppedPageIndices, pages, currentPageIndex));
+              }}
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             >
               {t("sidebar.cropped", { count: croppedPageIndices.length })}
             </button>
             <button
               type="button"
-              onClick={() =>
-                setSelectedPages(uncroppedPageIndices, {
-                  currentPageIndex: uncroppedPageIndices[0] ?? currentPageIndex,
-                  anchorPageIndex: uncroppedPageIndices[0] ?? null,
-                })
-              }
+              onClick={() => {
+                setSelectedPages(uncroppedPageIndices, sourceIdsToSelection(uncroppedPageIndices, pages, currentPageIndex));
+              }}
               className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
             >
               {t("sidebar.uncropped", { count: uncroppedPageIndices.length })}
@@ -254,20 +287,8 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
             <button
               type="button"
               onClick={() =>
-                setSelectedPages(rotatedPageIndices, {
-                  currentPageIndex: rotatedPageIndices[0] ?? currentPageIndex,
-                  anchorPageIndex: rotatedPageIndices[0] ?? null,
-                })
-              }
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {t("sidebar.rotated", { count: rotatedPageIndices.length })}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
                 setSelectedPages(
-                  pages.map((page) => page.pageIndex),
+                  pages.map((page) => page.sourceId),
                   { currentPageIndex: 0, anchorPageIndex: 0 },
                 )
               }
@@ -276,48 +297,61 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
               {t("sidebar.allPages")}
             </button>
           </div>
-          <div className="mt-3">
-            <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
-              {t("sidebar.pageRangeLabel")}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={pageRangeInput}
-                onChange={(event) => setPageRangeInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    applyPageRangeSelection();
-                  }
-                }}
-                placeholder={t("sidebar.pageRangePlaceholder")}
-                className="min-w-0 flex-1 rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
-              />
-              <button
-                type="button"
-                onClick={applyPageRangeSelection}
-                className="rounded-full bg-ink px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-white transition hover:bg-ink/90 dark:bg-ink-light dark:text-mist-dark dark:hover:bg-ink-light/90"
-              >
-                {t("sidebar.select")}
-              </button>
-            </div>
-            {pageRangeError ? (
-              <div className="mt-2 text-xs text-ember">{pageRangeError}</div>
-            ) : (
-              <div className="mt-2 text-xs text-ink/50 dark:text-ink-light/50">
-                {t("sidebar.shiftSelectHint")}
+          <div className="mt-3 border-t border-ink/8 pt-3 dark:border-white/10">
+            <button
+              type="button"
+              onClick={() => setPageRangeExpanded(!pageRangeExpanded)}
+              className="flex w-full items-center justify-between text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45"
+            >
+              <span>{t("sidebar.pageRangeLabel")}</span>
+              <span className="text-ink/60 dark:text-ink-light/60">
+                {pageRangeExpanded ? "▲" : "▼"}
+              </span>
+            </button>
+            {pageRangeExpanded && (
+              <div className="mt-3">
+                <div className="flex gap-2">
+                  <input
+                    value={pageRangeInput}
+                    onChange={(event) => setPageRangeInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        applyPageRangeSelection();
+                      }
+                    }}
+                    placeholder={t("sidebar.pageRangePlaceholder")}
+                    className="min-w-0 flex-1 rounded-[18px] border border-ink/10 bg-white/80 px-4 py-3 text-sm text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:focus:border-sky-dark"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyPageRangeSelection}
+                    className="rounded-full bg-ink px-4 py-3 text-xs font-medium uppercase tracking-[0.16em] text-white transition hover:bg-ink/90 dark:bg-ink-light dark:text-mist-dark dark:hover:bg-ink-light/90"
+                  >
+                    {t("sidebar.select")}
+                  </button>
+                </div>
+                {pageRangeError ? (
+                  <div className="mt-2 text-xs text-ember">{pageRangeError}</div>
+                ) : (
+                  <div className="mt-2 text-xs text-ink/50 dark:text-ink-light/50">
+                    {t("sidebar.shiftSelectHint")}
+                  </div>
+                )}
               </div>
             )}
           </div>
-          <div className="mt-3 grid gap-2">
-            <button
-              type="button"
-              disabled={selectedCroppedCount === 0}
-              onClick={() => clearPageCrops(selectedPageIndices)}
-              className="rounded-full border border-ink/12 bg-white px-4 py-3 text-sm font-medium text-ink transition enabled:hover:border-ink/20 disabled:bg-white/70 disabled:text-ink/50 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:enabled:hover:border-white/20 dark:disabled:bg-white/5 dark:disabled:text-ink-light/50"
-            >
-              {t("sidebar.clearSelectedCrops", { count: selectedCroppedCount })}
-            </button>
-          </div>
+        </div>
+      ) : null}
+      {documentLoadState === "ready" && pages.length > 0 && selectedCroppedCount > 0 ? (
+        <div className="mb-4">
+          <button
+            type="button"
+            disabled={selectedCroppedCount === 0}
+            onClick={() => clearPageCrops(selectedPageIndices)}
+            className="w-full rounded-full border border-ember/30 bg-ember/10 px-4 py-3 text-sm font-medium text-ember transition hover:border-ember/50 hover:bg-ember/20 dark:border-ember-dark/30 dark:bg-ember-dark/10 dark:text-ember-dark dark:hover:border-ember-dark/50 dark:hover:bg-ember-dark/20"
+          >
+            {t("sidebar.clearSelectedCrops", { count: selectedCroppedCount })}
+          </button>
         </div>
       ) : null}
       {documentLoadState === "loading" ? (
@@ -347,13 +381,13 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                     return null;
                   }
 
-                  const active = page.pageIndex === currentPageIndex;
-                  const selected = selectedPageIndices.includes(page.pageIndex);
-                  const hasCrop = Boolean(pageCrops[page.pageIndex]?.cropRect);
+                  const active = pages[currentPageIndex]?.sourceId === page.sourceId;
+                  const selected = selectedPageIndices.includes(page.sourceId);
+                  const hasCrop = Boolean(pageCrops[page.sourceId]?.cropRect);
 
                   return (
                     <div
-                      key={page.pageIndex}
+                      key={page.sourceId}
                       className="absolute left-0 top-0 w-full pb-3"
                       style={{ transform: `translateY(${virtualItem.start}px)` }}
                     >
@@ -362,11 +396,11 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                         isActive={active}
                         isSelected={selected}
                         hasCrop={hasCrop}
-                        thumbnail={thumbnails[page.pageIndex] ?? null}
+                        thumbnail={thumbnails[page.sourceId] ?? null}
                         onVisible={requestThumbnail}
                         onSelect={(event: MouseEvent<HTMLButtonElement>) =>
                           toggleSelectedPage(
-                            page.pageIndex,
+                            page.sourceId,
                             event.ctrlKey || event.metaKey,
                             event.shiftKey,
                           )
