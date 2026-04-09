@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "PDF-Tailor",
-    "version": "v1.x",
+    "version": "v1.1",
     "dismissHint": "Dismiss"
   },
   "settings": {

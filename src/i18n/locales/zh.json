@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "PDF-Tailor",
-    "version": "v1.x",
+    "version": "v1.1",
     "dismissHint": "关闭提示"
   },
   "settings": {
@@ -222,7 +222,7 @@
     "renderFailed": "预览渲染失败。",
     "previewTaskFailed": "预览任务执行失败。",
     "exportFailed": "导出任务执行失败。",
-    "unknownError": "Unknown export error",
+    "unknownError": "未知导出错误",
     "invalidCropDimensions": "第 {{page}} 页的裁剪尺寸无效。",
     "redrawRotatedNotSupported": "Redraw 导出暂不支持带裁剪框的旋转页（第 {{page}} 页），请改用 Crop box 模式。"
   },
