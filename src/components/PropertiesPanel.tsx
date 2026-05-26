@@ -14,11 +14,6 @@ import {
   fromDisplayUnit,
   toDisplayUnit,
 } from "@/utils/unitConversion";
-import {
-  getRuleLabel,
-  previewRule,
-  type PageSelectionRule,
-} from "@/utils/pageSelectionRules";
 import { detectAutoCrop } from "@/utils/autoCrop";
 import type { CropMode, PageMargins, PresetAnchor } from "@/types";
 import type { PDFDocumentProxy } from "@/lib/pdfjs";
@@ -77,9 +72,7 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
   const deleteTemplate = usePdfStore((state) => state.deleteTemplate);
   const applyTemplateToPages = usePdfStore((state) => state.applyTemplateToPages);
   const rotatePage = usePdfStore((state) => state.rotatePage);
-  const setSelectedPages = usePdfStore((state) => state.setSelectedPages);
   const addToast = useToastStore((state) => state.addToast);
-  const [rulesExpanded, setRulesExpanded] = useState(false);
 
   const currentCrop = selectCurrentPageCrop(
     currentPageIndex,
@@ -192,23 +185,6 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
   const handleCreateTemplate = () => {
     selectTemplate(null);
     setTemplateName(`\u6A21\u677F ${templates.length + 1}`);
-  };
-
-  const selectByRule = (rule: PageSelectionRule) => {
-    const affected = previewRule(rule, pages);
-    if (affected.length === 0) {
-      addToast({ type: "info", message: t("rules.noPagesMatch") });
-      return;
-    }
-    const lastDisplayIdx = pages.findIndex((p) => p.sourceId === affected.at(-1));
-    setSelectedPages(affected, {
-      currentPageIndex: lastDisplayIdx >= 0 ? lastDisplayIdx : 0,
-      anchorPageIndex: pages.findIndex((p) => p.sourceId === affected[0]),
-    });
-    addToast({
-      type: "success",
-      message: t("rules.appliedTo", { count: affected.length }),
-    });
   };
 
   const handleAutoCrop = async (withMargin: boolean) => {
@@ -327,92 +303,6 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
 
       {/* Scrollable middle area */}
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 space-y-4">
-        <div className="rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
-              {t("properties.batchRulesLabel")}
-            </div>
-            <button
-              type="button"
-              onClick={() => setRulesExpanded((v) => !v)}
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {rulesExpanded ? t("properties.collapse") : t("properties.expand")}
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => selectByRule({ type: "odd" })}
-              disabled={pages.length === 0}
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {t("rules.labelOdd")}
-            </button>
-            <button
-              type="button"
-              onClick={() => selectByRule({ type: "even" })}
-              disabled={pages.length === 0}
-              className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {t("rules.labelEven")}
-            </button>
-            {sourceId !== undefined && (
-              <button
-                type="button"
-                onClick={() => selectByRule({ type: "sameSize", referenceSourceId: sourceId })}
-                disabled={pages.length === 0}
-                className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-              >
-                {t("rules.labelSameSize")}
-              </button>
-            )}
-            {sourceId !== undefined && (
-              <button
-                type="button"
-                onClick={() => selectByRule({ type: "sameRotation", referenceSourceId: sourceId })}
-                disabled={pages.length === 0}
-                className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-              >
-                {t("rules.labelSameRotation")}
-              </button>
-            )}
-          </div>
-          {rulesExpanded && (
-            <div className="mt-3 space-y-2 border-t border-ink/8 pt-3 dark:border-white/10">
-              <div className="text-xs text-ink/60 dark:text-ink-light/60">
-                {t("properties.batchRulesExpandedHint")}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => selectByRule({ type: "everyN", step: 2, offset: 0 })}
-                  disabled={pages.length === 0}
-                  className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-                >
-                  {t("rules.labelEveryN", { step: 2, offset: 1 })}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectByRule({ type: "everyN", step: 3, offset: 0 })}
-                  disabled={pages.length === 0}
-                  className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-                >
-                  {t("rules.labelEveryN", { step: 3, offset: 1 })}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectByRule({ type: "everyN", step: 4, offset: 0 })}
-                  disabled={pages.length === 0}
-                  className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-                >
-                  {t("rules.labelEveryN", { step: 4, offset: 1 })}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
         <div className="rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="mb-3 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
             {t("properties.cropModeLabel")}

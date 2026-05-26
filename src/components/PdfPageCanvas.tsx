@@ -9,6 +9,12 @@ interface PdfPageCanvasProps {
   children?: ReactNode;
   /** User rotation in degrees (0, 90, 180, 270). Added to the PDF's intrinsic rotation. */
   userRotation?: number;
+  /** When true, canvas fills container width and height auto-scales to maintain aspect ratio */
+  fillWidth?: boolean;
+  /** When false, removes the rounded corners and shadow */
+  rounded?: boolean;
+  /** CSS transform applied to the inner canvas wrapper (e.g. "scale(2) translate(-100px, 0)") */
+  transform?: string;
 }
 
 interface CanvasSize {
@@ -22,6 +28,9 @@ export function PdfPageCanvas({
   zoom,
   children,
   userRotation,
+  fillWidth,
+  rounded = true,
+  transform,
 }: PdfPageCanvasProps) {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -31,6 +40,8 @@ export function PdfPageCanvas({
   const cachedPageKey = useRef<string | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [renderState, setRenderState] = useState<"loading" | "ready" | "error">("loading");
+  // Separate tracking of viewport dimensions for aspectRatio when fillWidth is true
+  const [viewportSize, setViewportSize] = useState<CanvasSize>({ width: 0, height: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -87,13 +98,16 @@ export function PdfPageCanvas({
 
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
 
-        setCanvasSize({
-          width: viewport.width,
-          height: viewport.height,
-        });
+        if (fillWidth) {
+          // Let CSS control canvas sizing to enable fluid scaling
+          setCanvasSize({ width: 0, height: 0 });
+          setViewportSize({ width: viewport.width, height: viewport.height });
+        } else {
+          canvas.style.width = `${viewport.width}px`;
+          canvas.style.height = `${viewport.height}px`;
+          setCanvasSize({ width: viewport.width, height: viewport.height });
+        }
 
         const transform =
           outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0];
@@ -142,13 +156,21 @@ export function PdfPageCanvas({
   return (
     <div
       data-testid="pdf-page-stage"
-      className="relative overflow-hidden rounded-[20px] border border-ink/10 bg-paper shadow-[0_24px_60px_rgba(24,34,48,0.12)]"
-      style={{
+      className={`relative overflow-hidden bg-paper ${rounded ? "rounded-[20px] border border-ink/10 shadow-[0_24px_60px_rgba(24,34,48,0.12)]" : "rounded-none border-none shadow-none"}`}
+      style={fillWidth ? {
+        width: "100%",
+        height: "auto",
+        aspectRatio: viewportSize.width && viewportSize.height ? `${viewportSize.width} / ${viewportSize.height}` : undefined,
+      } : {
         width: canvasSize.width ? `${canvasSize.width}px` : "320px",
-        minHeight: canvasSize.height ? `${canvasSize.height}px` : "420px",
+        height: canvasSize.height ? `${canvasSize.height}px` : "420px",
       }}
     >
-      <canvas ref={canvasRef} className="block max-w-full" />
+      <canvas
+        ref={canvasRef}
+        className="block w-full h-full"
+        style={fillWidth ? { display: "block", width: "100%", height: "100%", ...(transform ? { transform } : {}) } : {}}
+      />
       {children}
       {renderState === "loading" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-paper/80 text-sm font-medium text-ink/60">

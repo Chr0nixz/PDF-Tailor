@@ -21,8 +21,10 @@ import { DraggablePageThumbnail } from "@/components/DraggablePageThumbnail";
 import { DiagnosticPanel } from "@/components/DiagnosticPanel";
 import { useThumbnails } from "@/hooks/useThumbnails";
 import { usePdfStore } from "@/store/usePdfStore";
+import { useToastStore } from "@/store/useToastStore";
 import type { PDFDocumentProxy } from "@/lib/pdfjs";
 import type { PageMetadata } from "@/types";
+import { previewRule, type PageSelectionRule } from "@/utils/pageSelectionRules";
 
 interface PageSidebarProps {
   documentProxy: PDFDocumentProxy | null;
@@ -141,9 +143,11 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   const reorderPages = usePdfStore((state) => state.reorderPages);
   const restoreOriginalOrder = usePdfStore((state) => state.restoreOriginalOrder);
   const isOrderModified = usePdfStore((state) => state.isOrderModified);
+  const addToast = useToastStore((state) => state.addToast);
   const parentRef = useRef<HTMLDivElement | null>(null);
   const [pageRangeInput, setPageRangeInput] = useState("");
   const [pageRangeError, setPageRangeError] = useState<string | null>(null);
+  const [rulesExpanded, setRulesExpanded] = useState(false);
   const { thumbnails, requestThumbnail } = useThumbnails(documentProxy, pages);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -202,6 +206,23 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
   const selectedCroppedCount = selectedPageIndices.filter(
     (pageIndex) => Boolean(pageCrops[pageIndex]?.cropRect),
   ).length;
+
+  const selectByRule = (rule: PageSelectionRule) => {
+    const affected = previewRule(rule, pages);
+    if (affected.length === 0) {
+      addToast({ type: "info", message: t("rules.noPagesMatch") });
+      return;
+    }
+    // previewRule returns pageIndex values (display indices), not sourceIds
+    setSelectedPages(affected, {
+      currentPageIndex: affected.at(-1) ?? 0,
+      anchorPageIndex: affected[0],
+    });
+    addToast({
+      type: "success",
+      message: t("rules.appliedTo", { count: affected.length }),
+    });
+  };
 
   const applyPageRangeSelection = () => {
     const parsed = parsePageRangeInput(pageRangeInput, pages.length);
@@ -324,6 +345,54 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
                 >
                   {t("sidebar.allPages")}
                 </button>
+              </div>
+              <div className="mt-3 border-t border-ink/8 pt-3 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setRulesExpanded((v) => !v)}
+                  className="flex w-full items-center justify-between text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45"
+                >
+                  <span>{t("properties.batchRulesLabel")}</span>
+                  <span className="text-ink/60 dark:text-ink-light/60">
+                    {rulesExpanded ? "▲" : "▼"}
+                  </span>
+                </button>
+                {rulesExpanded && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => selectByRule({ type: "odd" })}
+                      disabled={pages.length === 0}
+                      className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+                    >
+                      {t("rules.labelOdd")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectByRule({ type: "even" })}
+                      disabled={pages.length === 0}
+                      className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+                    >
+                      {t("rules.labelEven")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectByRule({ type: "sameSize", referenceSourceId: pages[currentPageIndex]?.sourceId ?? 0 })}
+                      disabled={pages.length === 0}
+                      className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+                    >
+                      {t("rules.labelSameSize")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectByRule({ type: "sameRotation", referenceSourceId: pages[currentPageIndex]?.sourceId ?? 0 })}
+                      disabled={pages.length === 0}
+                      className="rounded-full border border-ink/10 bg-white/80 px-3 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+                    >
+                      {t("rules.labelSameRotation")}
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="mt-3 border-t border-ink/8 pt-3 dark:border-white/10">
                 <button

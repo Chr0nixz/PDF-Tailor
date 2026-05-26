@@ -55,13 +55,13 @@ function matchesRule(
       return displayIdx % 2 === 1; // 0-based: 1,3,5... are "even positions"
 
     case "sameSize": {
-      const ref = pages.find((p) => p.pageIndex === rule.referenceSourceId);
+      const ref = pages.find((p) => p.sourceId === rule.referenceSourceId);
       if (!ref) return false;
       return page.widthPt === ref.widthPt && page.heightPt === ref.heightPt;
     }
 
     case "sameRotation": {
-      const ref = pages.find((p) => p.pageIndex === rule.referenceSourceId);
+      const ref = pages.find((p) => p.sourceId === rule.referenceSourceId);
       if (!ref) return false;
       return page.rotation === ref.rotation;
     }
