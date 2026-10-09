@@ -349,7 +349,10 @@ export function PreviewModal() {
             >
               {t("preview.noPrevPage")}
             </button>
-            <div className="rounded-full bg-white/80 px-3 py-1.5 text-sm font-medium text-ink">
+            <div
+              data-testid="preview-page-indicator"
+              className="rounded-full bg-white/80 px-3 py-1.5 text-sm font-medium text-ink"
+            >
               {pageCount > 0 ? `${previewPageIndex + 1} / ${pageCount}` : "0 / 0"}
             </div>
             <button

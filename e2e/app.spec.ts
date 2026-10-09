@@ -116,7 +116,7 @@ test("loads a PDF, crops a page, previews, and exports", async ({ page }) => {
 
   await page.getByTestId("preview-button").click();
   await expect(page.getByTestId("preview-dialog")).toBeVisible();
-  await expect(page.getByTestId("preview-dialog").getByText(/\/ 2/)).toBeVisible();
+  await expect(page.getByTestId("preview-page-indicator")).toHaveText(/\/ 2/);
   await expect(page.getByTestId("preview-dialog").locator("canvas")).toBeVisible();
   await page.getByTestId("preview-dialog-close").click();
   await expect(page.getByTestId("preview-dialog")).toBeHidden();
