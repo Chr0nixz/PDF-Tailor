@@ -13,8 +13,18 @@ export async function readFileAsUint8Array(file: File) {
 
 let tauriPluginsAvailable: boolean | null = null;
 
+export function isTauriAvailable(): boolean {
+  if (typeof window === "undefined") return false;
+  if ("__TAURI_INTERNALS__" in window || "__TAURI__" in window) return true;
+  return tauriPluginsAvailable === true;
+}
+
 async function checkTauriAvailable(): Promise<boolean> {
   if (tauriPluginsAvailable !== null) return tauriPluginsAvailable;
+  if (!isTauriAvailable()) {
+    tauriPluginsAvailable = false;
+    return false;
+  }
   try {
     const { open, save } = await import("@tauri-apps/plugin-dialog");
     void open; void save;
@@ -23,11 +33,6 @@ async function checkTauriAvailable(): Promise<boolean> {
     tauriPluginsAvailable = false;
   }
   return tauriPluginsAvailable;
-}
-
-export function isTauriAvailable() {
-  // Synchronous check - returns last known state or false if never checked
-  return tauriPluginsAvailable === true;
 }
 
 export async function openPdfDialog(): Promise<{ path: string; buffer: Uint8Array; name: string } | null> {

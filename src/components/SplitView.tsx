@@ -26,6 +26,7 @@ export function SplitView({ documentProxy }: SplitViewProps) {
     pageCrops,
     draftCropRect,
     activeDragState.pageIndex,
+    pages,
   );
   const cropRect: CropRect | null = cropState?.cropRect ?? null;
 
@@ -140,7 +141,7 @@ export function SplitView({ documentProxy }: SplitViewProps) {
           >
             <PdfPageCanvas
               documentProxy={documentProxy}
-              pageIndex={currentPageIndex}
+              pageIndex={page.sourceId}
               zoom={displayZoom}
               fillWidth
               rounded={false}
@@ -190,7 +191,7 @@ export function SplitView({ documentProxy }: SplitViewProps) {
           >
             <PdfPageCanvas
               documentProxy={documentProxy}
-              pageIndex={currentPageIndex}
+              pageIndex={page.sourceId}
               zoom={displayZoom}
               fillWidth
               rounded={false}

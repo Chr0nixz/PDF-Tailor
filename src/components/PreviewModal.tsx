@@ -66,16 +66,6 @@ export function PreviewModal() {
   }, [previewOpen, currentPageIndex]);
 
   useEffect(() => {
-    if (previewMode === "redraw" && redrawBlocked) {
-      setPreviewMode("crop-box");
-      setPreviewError(
-        t("preview.rotatedCropWarning", { list: rotatedList }),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewMode, redrawBlocked, rotatedList]);
-
-  useEffect(() => {
     if (!previewOpen) {
       return;
     }
@@ -96,12 +86,7 @@ export function PreviewModal() {
     const cleanupPreviewDocument = async () => {
       renderTaskRef.current?.cancel();
       renderTaskRef.current = null;
-
-      const loadingTask = loadingTaskRef.current;
       loadingTaskRef.current = null;
-      if (loadingTask) {
-        await loadingTask.destroy().catch(() => undefined);
-      }
 
       const previewDocument = previewDocumentRef.current;
       previewDocumentRef.current = null;
@@ -163,11 +148,25 @@ export function PreviewModal() {
 
         try {
           const pdfjs = await loadPdfJs();
-          const loadingTask = pdfjs.getDocument({
-            data: new Uint8Array(response.payload.fileBuffer),
+          const buffer = new Uint8Array(response.payload.fileBuffer);
+          let loadingTask = pdfjs.getDocument({
+            data: buffer,
           });
           loadingTaskRef.current = loadingTask;
-          const previewDocument = await loadingTask.promise;
+          let previewDocument: PDFDocumentProxy;
+          try {
+            previewDocument = await loadingTask.promise;
+          } catch (err) {
+            if (err instanceof Error && err.message.includes("Worker was destroyed")) {
+              loadingTask = pdfjs.getDocument({
+                data: buffer.slice(),
+              });
+              loadingTaskRef.current = loadingTask;
+              previewDocument = await loadingTask.promise;
+            } else {
+              throw err;
+            }
+          }
 
           if (cancelled) {
             await previewDocument.destroy().catch(() => undefined);
@@ -319,11 +318,6 @@ export function PreviewModal() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          {redrawBlocked ? (
-            <div className="w-full rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
-              {t("preview.rotatedCropWarningAlt", { list: formatRotatedPagesList(rotatedCroppedPages, "、") })}
-            </div>
-          ) : null}
           <button
             type="button"
             onClick={() => setPreviewMode("crop-box")}
@@ -337,18 +331,12 @@ export function PreviewModal() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (redrawBlocked) {
-                return;
-              }
-              setPreviewMode("redraw");
-            }}
-            disabled={redrawBlocked}
+            onClick={() => setPreviewMode("redraw")}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               previewMode === "redraw"
                 ? "bg-ink text-white dark:bg-ink-light dark:text-mist-dark"
                 : "border border-ink/10 bg-white/80 text-ink hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            } disabled:cursor-not-allowed disabled:opacity-50`}
+            }`}
           >
             Redraw
           </button>

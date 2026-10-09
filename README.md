@@ -18,26 +18,48 @@ It focuses on one job: open a PDF, visually define crop regions, batch-apply the
 - **Native desktop workflow**: Open and save dialogs, recent files list
 - **Undo / redo** for all crop operations
 - **Web Worker export pipeline** — UI stays responsive during large exports
+- **Column & spread splitting** — split two-column research papers or book spreads into sequential reading pages
+- **Auto-crop 2.0** — histogram-based background detection with anti-border artifact and projection profiling
+- **Facing pages & mirror margins** — automatically swap left/right margins between odd and even pages for book binding
+- **Project session export/import** — save and restore your complete setup via `.pdftailor` files
+- **Full rotation support in Redraw export** — seamless redraw exports for 90°/180°/270° pages
+- **Real-time export dashboard** — dynamic progress, processing speed, ETA, and split-page count forecasting
 - **LTR / RTL** — English and Chinese (中文) fully localized
 
 ## Current Status
 
-**v1.1** is the current stable release.
+**v1.3** is the current stable release.
 
-All items from the v1.1 roadmap are implemented:
+### What's New in v1.3:
+- **Two-Column / Multi-Column Page Splitting**: Split two-column papers (arXiv, IEEE, ACM) or double-page scanned spreads into sequential single-column pages, with adjustable split ratio and gutter spacing.
+- **Auto-Crop 2.0 (Intelligent Border Filtering)**: Multi-point luminance histogram mode sampling filters out dark scanner frames, shadow gradients, and isolated noise particles.
+- **Live Export Dashboard 2.0**: Accurate progress bar with speed (pages/sec), real-time ETA calculation, and output page forecasting.
+
+### What's New in v1.2:
+- **Mirror Margins (Facing Pages)**: Auto-swap left/right margins between odd/even pages for double-sided bound book layouts.
+- **Project Session File (`.pdftailor`)**: Export and import complete crop regions, page sequences, and templates.
+- **Full Rotation Support in Redraw Mode**: Mathematical affine transform compensation for 90°/180°/270° rotated pages in Redraw mode.
+- **Export Page Order Preservation**: Reordered pages strictly retain custom order in exported PDF documents.
+
+All items from previous releases remain fully supported:
 
 | Priority | Feature | Status |
 |----------|---------|--------|
 | P0 | Page identity model (`sourceId` vs display order) | ✅ |
 | P0 | Page reordering with drag-and-drop + restore | ✅ |
+| P0 | Full Redraw rotation support (90° / 180° / 270°) | ✅ |
+| P0 | Column & spread page splitting (two-column papers) | ✅ |
+| P1 | Auto-crop 2.0 (histogram sampling & border exclusion) | ✅ |
+| P1 | Export dashboard 2.0 (pages/sec speed & ETA forecast) | ✅ |
+| P1 | Facing pages & mirror margins for book layouts | ✅ |
+| P1 | Session save & load (`.pdftailor`) | ✅ |
 | P1 | Rule-based batch apply | ✅ |
-| P1 | Auto-crop v1 (high-contrast edge detection) | ✅ |
 | P1 | Thumbnail LRU cache + adjacent preheat | ✅ |
 | P1 | Native desktop open / save / recent files | ✅ |
 | P2 | Document diagnostic panel | ✅ |
 | P2 | Keyboard shortcut help overlay | ✅ |
 
-Also shipped in v1.1: Split View, Print Preview, Theme Selector, Onboarding Overlay.
+Also shipped: Split View, Print Preview, Theme Selector, Onboarding Overlay.
 
 ## Screenshots
 
@@ -88,12 +110,8 @@ Drag the divider to compare the original page and cropped result side-by-side. T
 - **Preview** generated from the same export pipeline as final export
 - **Print Preview** with page navigation and browser print integration
 - **`Crop box`** export — fast, adjusts page boxes directly
-- **`Redraw`** export — rebuilds pages sized to crop result
+- **`Redraw`** export — rebuilds pages sized to crop result (with full 90°/180°/270° orientation support)
 - Export scope: current page, selected pages, or all pages
-
-Current limitation:
-
-- `Redraw` is disabled for pages cropped at `90°` or `270°` rotation
 
 ### Themes
 
@@ -259,9 +277,7 @@ src-tauri/
 
 ## Known Limitations
 
-- `Redraw` does not yet support cropped rotated pages (`90°` / `270°`)
 - E2E currently runs only on Chromium
-- Export progress is shown as a spinner; percentage reporting is not yet implemented
 - Preset sizes are clamped when the source page is smaller than the target size
 
 ## License

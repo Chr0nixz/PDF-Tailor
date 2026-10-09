@@ -1,4 +1,4 @@
-import type { CropTemplate, PdfUnit, PresetAnchor } from "@/types";
+import type { ColumnSplitConfig, CropTemplate, PdfUnit, PresetAnchor } from "@/types";
 import type { KeyBinding } from "@/hooks/useKeyBindings";
 
 const STORAGE_KEY = "pdf-tailor.preferences.v1";
@@ -28,6 +28,7 @@ export interface PersistedPreferences {
   propertiesPanelWidth?: number;
   sidebarCollapsed?: boolean;
   propertiesPanelCollapsed?: boolean;
+  mirrorMarginsEnabled?: boolean;
   recentFiles: RecentFile[];
 }
 
@@ -59,6 +60,21 @@ function normalizeMarginsRatio(value: unknown) {
   };
 }
 
+function normalizeSplitConfig(value: unknown): ColumnSplitConfig | undefined {
+  if (!isRecord(value)) return undefined;
+  const direction = value.direction;
+  if (direction !== "vertical" && direction !== "horizontal") return undefined;
+  const splitRatio =
+    typeof value.splitRatio === "number" && Number.isFinite(value.splitRatio)
+      ? Math.max(0.05, Math.min(0.95, value.splitRatio))
+      : 0.5;
+  const gutterPt =
+    typeof value.gutterPt === "number" && Number.isFinite(value.gutterPt)
+      ? Math.max(0, value.gutterPt)
+      : 0;
+  return { direction, splitRatio, gutterPt };
+}
+
 function normalizeTemplate(value: unknown): CropTemplate | null {
   if (!isRecord(value) || typeof value.id !== "string") {
     return null;
@@ -85,6 +101,7 @@ function normalizeTemplate(value: unknown): CropTemplate | null {
         ? (value.presetAnchor as PresetAnchor)
         : undefined,
     marginsRatio,
+    splitConfig: normalizeSplitConfig(value.splitConfig),
     createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now(),
     updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : Date.now(),
   };
@@ -161,6 +178,8 @@ export function loadPersistedPreferences(): Partial<PersistedPreferences> {
       sidebarCollapsed: typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
       propertiesPanelCollapsed:
         typeof parsed.propertiesPanelCollapsed === "boolean" ? parsed.propertiesPanelCollapsed : false,
+      mirrorMarginsEnabled:
+        typeof parsed.mirrorMarginsEnabled === "boolean" ? parsed.mirrorMarginsEnabled : false,
       recentFiles: normalizeRecentFiles(parsed.recentFiles),
     };
   } catch {

@@ -6,6 +6,7 @@ import {
   createPresetCropRect,
   cropRectToMargins,
   marginsToCropRect,
+  mirrorMargins,
   pdfRectToCanvasRect,
   pdfToCanvasPoint,
 } from "@/utils/coordinates";
@@ -100,5 +101,11 @@ describe("coordinates", () => {
     expect(rect.height).toBe(792);
     expect(rect.x).toBeCloseTo(0, 4);
     expect(rect.y).toBeCloseTo(0, 4);
+  });
+
+  it("swaps left and right margins with mirrorMargins while keeping top and bottom", () => {
+    const original = { top: 15, right: 30, bottom: 25, left: 10 };
+    const mirrored = mirrorMargins(original);
+    expect(mirrored).toEqual({ top: 15, right: 10, bottom: 25, left: 30 });
   });
 });

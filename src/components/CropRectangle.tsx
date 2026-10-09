@@ -1,11 +1,12 @@
 import { memo, type PointerEvent as ReactPointerEvent } from "react";
 import { pdfRectToCanvasRect, pdfToCanvasPoint, type ViewportMetrics } from "@/utils/coordinates";
-import type { CropHandle, CropRect, SnapGuide } from "@/types";
+import type { ColumnSplitConfig, CropHandle, CropRect, SnapGuide } from "@/types";
 
 interface CropRectangleProps {
   cropRect: CropRect;
   viewport: ViewportMetrics;
   snapGuides: SnapGuide[];
+  splitConfig?: ColumnSplitConfig;
   onMoveStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onResizeStart: (handle: CropHandle, event: ReactPointerEvent<HTMLDivElement>) => void;
 }
@@ -29,6 +30,7 @@ export const CropRectangle = memo(function CropRectangle({
   cropRect,
   viewport,
   snapGuides,
+  splitConfig,
   onMoveStart,
   onResizeStart,
 }: CropRectangleProps) {
@@ -73,6 +75,35 @@ export const CropRectangle = memo(function CropRectangle({
         }}
       >
         <div className="absolute inset-0 cursor-move rounded-[16px]" />
+
+        {splitConfig && splitConfig.direction === "vertical" && (
+          <div
+            className="pointer-events-none absolute bottom-0 top-0 border-l-2 border-dashed border-pine"
+            style={{ left: `${canvasRect.width * (splitConfig.splitRatio ?? 0.5)}px` }}
+          >
+            <div className="absolute -left-3.5 top-2 flex items-center justify-center rounded-full bg-pine px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+              ①
+            </div>
+            <div className="absolute left-1 top-2 flex items-center justify-center rounded-full bg-pine px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+              ②
+            </div>
+          </div>
+        )}
+
+        {splitConfig && splitConfig.direction === "horizontal" && (
+          <div
+            className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-pine"
+            style={{ top: `${canvasRect.height * (1 - (splitConfig.splitRatio ?? 0.5))}px` }}
+          >
+            <div className="absolute left-2 -top-4 flex items-center justify-center rounded-full bg-pine px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+              ①
+            </div>
+            <div className="absolute left-2 top-1 flex items-center justify-center rounded-full bg-pine px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+              ②
+            </div>
+          </div>
+        )}
+
         {HANDLE_POSITIONS.map(({ handle, className, cursor }) => (
           <div
             key={handle}

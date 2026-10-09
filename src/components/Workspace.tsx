@@ -49,13 +49,15 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
     pageCrops,
     draftCropRect,
     activeDragState.pageIndex,
+    pages,
   )?.cropRect;
+  const currentSplitConfig = page ? pageCrops[page.sourceId]?.splitConfig : undefined;
   const cropLayerRef = useRef<HTMLDivElement | null>(null);
   const viewportFrameRef = useRef<HTMLDivElement | null>(null);
   const { cropRect, snapGuides, startCreate, startMove, startResize } = useCropSelection({
     containerRef: cropLayerRef,
     viewport,
-    pageIndex: currentPageIndex,
+    pageIndex: page ? page.sourceId : currentPageIndex,
     pageWidthPt: page?.widthPt ?? 0,
     pageHeightPt: page?.heightPt ?? 0,
     cropRect: currentCrop ?? null,
@@ -173,7 +175,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
               <div className="relative z-10">
                 <PdfPageCanvas
                   documentProxy={documentProxy}
-                  pageIndex={currentPageIndex}
+                  pageIndex={page.sourceId}
                   zoom={zoom}
                   userRotation={page?.userRotation}
                 >
@@ -184,12 +186,14 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
                         cropRect={cropRect}
                         viewport={viewport}
                         snapGuides={snapGuides}
+                        splitConfig={currentSplitConfig}
                         onMoveStart={startMove}
                         onResizeStart={startResize}
                       />
                     ) : null}
                     {viewport &&
-                    activeDragState.pageIndex === currentPageIndex &&
+                    (activeDragState.pageIndex === currentPageIndex ||
+                      activeDragState.pageIndex === page.sourceId) &&
                     draftCropRect ? (
                       <CropDimensionsTooltip
                         cropRect={draftCropRect}

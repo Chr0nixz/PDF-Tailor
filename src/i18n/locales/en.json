@@ -53,7 +53,10 @@
       "clear": "Crop cleared",
       "paste": "Crop pasted",
       "templateApply": "Template applied",
-      "nudge": "Crop nudged"
+      "nudge": "Crop nudged",
+      "loadSession": "Project loaded",
+      "splitConfig": "Column split configured",
+      "batchSplit": "Batch column split applied"
     },
     "undone": "Undone: {{action}}",
     "redone": "Redone: {{action}}"
@@ -102,6 +105,8 @@
     "summaryOutputPages": "Output pages",
     "summaryCroppedPages": "Cropped pages",
     "summaryEstSize": "Est. size",
+    "speed": "Speed: {{rate}} pages/s",
+    "eta": "ETA: {{seconds}}s remaining",
     "openLocation": "Open location"
   },
   "printPreview": {
@@ -157,12 +162,23 @@
     "marginLeft": "Left Margin",
     "marginHint": "Preset paper sizes, 9-grid positioning, and numeric margins are linked together. Adjust on the current page first, then batch apply to selected pages or the entire document.",
     "applyAll": "Apply to All Pages ({{count}})",
+    "mirrorMargins": "Mirror margins (Facing pages)",
+    "mirrorMarginsTooltip": "Swap left and right margins between odd and even pages for bound book layouts",
     "expand": "Expand",
     "collapse": "Collapse",
     "batchRulesLabel": "BATCH SELECT",
     "batchRuleLabel": "Selection",
     "batchRuleValue": "{{count}} page(s) selected",
-    "batchRulesExpandedHint": "Every N selects every Nth page starting from position 1."
+    "batchRulesExpandedHint": "Every N selects every Nth page starting from position 1.",
+    "columnSplitLabel": "Column Split",
+    "splitVerticalShort": "2 Columns",
+    "splitHorizontalShort": "2 Halves",
+    "split_none": "Single Page",
+    "split_vertical": "Left / Right",
+    "split_horizontal": "Top / Bottom",
+    "splitRatio": "Split Ratio",
+    "applySplitToSelected": "Apply Split to Selected ({{count}})",
+    "applySplitToAll": "Apply Split to All"
   },
   "autoCrop": {
     "label": "AUTO DETECT",
@@ -322,5 +338,14 @@
     "largeDocument": "Large document ({{count}} pages)",
     "jumpToPage": "Go to page {{page}}",
     "showAll": "Show all"
+  },
+  "session": {
+    "exportSession": "Save Project (.pdftailor)",
+    "importSession": "Load Project (.pdftailor)",
+    "openPdfFirst": "Please open a PDF document before saving a project.",
+    "exportedSuccess": "Project session successfully saved.",
+    "loadedSuccess": "Project session successfully loaded and applied.",
+    "invalidFormat": "Unrecognized file format. Please provide a valid .pdftailor file.",
+    "readFailed": "Failed to read project file."
   }
 }

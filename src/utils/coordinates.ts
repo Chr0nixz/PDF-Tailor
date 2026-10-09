@@ -213,3 +213,12 @@ export function createPresetCropRect(
     pageHeightPt,
   );
 }
+
+export function mirrorMargins(margins: PageMargins): PageMargins {
+  return {
+    top: margins.top,
+    right: margins.left,
+    bottom: margins.bottom,
+    left: margins.right,
+  };
+}

@@ -213,11 +213,7 @@ export function PageSidebar({ documentProxy }: PageSidebarProps) {
       addToast({ type: "info", message: t("rules.noPagesMatch") });
       return;
     }
-    // previewRule returns pageIndex values (display indices), not sourceIds
-    setSelectedPages(affected, {
-      currentPageIndex: affected.at(-1) ?? 0,
-      anchorPageIndex: affected[0],
-    });
+    setSelectedPages(affected, sourceIdsToSelection(affected, pages, currentPageIndex));
     addToast({
       type: "success",
       message: t("rules.appliedTo", { count: affected.length }),

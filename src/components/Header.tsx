@@ -4,6 +4,11 @@ import { usePdfStore } from "@/store/usePdfStore";
 import { useToastStore } from "@/store/useToastStore";
 import { getRotatedPages, isLargeDocument } from "@/utils/documentWarnings";
 import { isPdfFile, readFileAsUint8Array, openPdfDialog, isTauriAvailable } from "@/utils/fileIO";
+import {
+  createSessionPayload,
+  downloadSessionFile,
+  parseAndValidateSession,
+} from "@/utils/sessionIO";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import i18n from "@/i18n/i18n";
 
@@ -13,9 +18,67 @@ function SettingsMenu() {
   const clearDocument = usePdfStore((state) => state.clearDocument);
   const setShortcutSettingsOpen = usePdfStore((state) => state.setShortcutSettingsOpen);
   const fileName = usePdfStore((state) => state.fileName);
+  const pages = usePdfStore((state) => state.pages);
+  const pageCrops = usePdfStore((state) => state.pageCrops);
+  const displayUnit = usePdfStore((state) => state.displayUnit);
+  const templates = usePdfStore((state) => state.templates);
+  const loadSession = usePdfStore((state) => state.loadSession);
+  const addToast = useToastStore((state) => state.addToast);
+  const sessionFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleSaveSession = () => {
+    if (!fileName || pages.length === 0) {
+      addToast({ type: "info", message: t("session.openPdfFirst") });
+      return;
+    }
+    const session = createSessionPayload({
+      fileName,
+      pageCount: pages.length,
+      displayUnit,
+      pageOrder: pages.map((p) => p.sourceId),
+      pageCrops,
+      templates,
+    });
+    downloadSessionFile(session);
+    addToast({ type: "success", message: t("session.exportedSuccess") });
+    setOpen(false);
+  };
+
+  const handleSessionFileSelected = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const text = await file.text();
+      const result = parseAndValidateSession(text, pages.length);
+      if (!result.valid || !result.session) {
+        addToast({
+          type: "error",
+          message: result.error ?? t("session.invalidFormat"),
+        });
+        return;
+      }
+      loadSession(result.session);
+      if (result.warning) {
+        addToast({ type: "warning", message: result.warning });
+      } else {
+        addToast({ type: "success", message: t("session.loadedSuccess") });
+      }
+      setOpen(false);
+    } catch {
+      addToast({ type: "error", message: t("session.readFailed") });
+    }
+  };
 
   return (
     <div className="relative">
+      <input
+        ref={sessionFileInputRef}
+        type="file"
+        accept=".pdftailor,.json"
+        className="hidden"
+        onChange={handleSessionFileSelected}
+      />
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -27,7 +90,7 @@ function SettingsMenu() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-[16px] border border-ink/10 bg-white/95 p-2 shadow-lg backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
+          <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-[16px] border border-ink/10 bg-white/95 p-2 shadow-lg backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
             {fileName && (
               <>
                 <button
@@ -41,9 +104,26 @@ function SettingsMenu() {
                   <span className="text-ink/70 dark:text-ink-light/70">✕</span>
                   {t("header.close")}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleSaveSession}
+                  className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-sm text-ink hover:bg-ink/5 dark:text-ink-light dark:hover:bg-white/10"
+                >
+                  <span className="text-ink/70 dark:text-ink-light/70">💾</span>
+                  {t("session.exportSession")}
+                </button>
                 <div className="my-1 border-t border-ink/8 dark:border-white/10" />
               </>
             )}
+            <button
+              type="button"
+              onClick={() => sessionFileInputRef.current?.click()}
+              className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-sm text-ink hover:bg-ink/5 dark:text-ink-light dark:hover:bg-white/10"
+            >
+              <span className="text-ink/70 dark:text-ink-light/70">📂</span>
+              {t("session.importSession")}
+            </button>
+            <div className="my-1 border-t border-ink/8 dark:border-white/10" />
             <div className="flex items-center justify-between px-3 py-2">
               <span className="text-sm text-ink/70 dark:text-ink-light/70">{t("settings.theme")}</span>
               <ThemeSelector />

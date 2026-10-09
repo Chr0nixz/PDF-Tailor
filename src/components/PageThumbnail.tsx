@@ -45,28 +45,28 @@ export const PageThumbnail = memo(function PageThumbnail({
         label: t("thumbnail.context.copyCrop"),
         shortcut: "Ctrl+C",
         disabled: !hasCrop,
-        action: () => copyCrop(page.pageIndex),
+        action: () => copyCrop(page.sourceId),
       },
       {
         label: t("thumbnail.context.pasteCrop"),
         shortcut: "Ctrl+V",
         disabled: !clipboard,
-        action: () => pasteCropToPages([page.pageIndex]),
+        action: () => pasteCropToPages([page.sourceId]),
       },
       {
         label: t("thumbnail.context.clearCrop"),
         disabled: !hasCrop,
         danger: true,
-        action: () => clearPageCrops([page.pageIndex]),
+        action: () => clearPageCrops([page.sourceId]),
       },
       { divider: true },
       {
         label: t("thumbnail.context.rotateCw"),
-        action: () => rotatePage(page.pageIndex, 90),
+        action: () => rotatePage(page.sourceId, 90),
       },
       {
         label: t("thumbnail.context.rotateCcw"),
-        action: () => rotatePage(page.pageIndex, -90),
+        action: () => rotatePage(page.sourceId, -90),
       },
       {
         label: t("thumbnail.context.selectAll"),
@@ -74,7 +74,7 @@ export const PageThumbnail = memo(function PageThumbnail({
         action: () => selectAllPages(),
       },
     ];
-    open(e, { type: "thumbnail", pageIndex: page.pageIndex }, items);
+    open(e, { type: "thumbnail", pageIndex: page.sourceId }, items);
   };
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export const PageThumbnail = memo(function PageThumbnail({
       (entries) => {
         const [entry] = entries;
         if (entry?.isIntersecting) {
-          onVisible(page.pageIndex);
+          onVisible(page.sourceId);
         }
       },
       {
@@ -97,13 +97,13 @@ export const PageThumbnail = memo(function PageThumbnail({
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [onVisible, page.pageIndex]);
+  }, [onVisible, page.sourceId]);
 
   return (
     <button
       ref={ref}
       type="button"
-      data-testid={`page-thumbnail-${page.pageIndex}`}
+      data-testid={`page-thumbnail-${page.sourceId}`}
       onClick={onSelect}
       onContextMenu={handleContextMenu}
       aria-pressed={isSelected}

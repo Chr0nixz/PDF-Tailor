@@ -75,6 +75,14 @@ export interface PageMargins {
   left: number;
 }
 
+export type ColumnSplitDirection = "none" | "vertical" | "horizontal";
+
+export interface ColumnSplitConfig {
+  direction: ColumnSplitDirection;
+  splitRatio: number;
+  gutterPt?: number;
+}
+
 export interface PageCropState {
   pageIndex: number;
   cropRect: CropRect | null;
@@ -83,6 +91,7 @@ export interface PageCropState {
   presetAnchor?: PresetAnchor;
   marginsPt: PageMargins;
   updatedAt: number;
+  splitConfig?: ColumnSplitConfig;
 }
 
 export interface CropTemplate {
@@ -94,6 +103,7 @@ export interface CropTemplate {
   marginsRatio: PageMargins;
   createdAt: number;
   updatedAt: number;
+  splitConfig?: ColumnSplitConfig;
 }
 
 export interface WorkerExportPayload {
@@ -101,4 +111,16 @@ export interface WorkerExportPayload {
   pageCrops: Record<number, PageCropState>;
   exportMode: ExportMode;
   exportPageIndices?: number[];
+}
+
+export interface PdfTailorSession {
+  format: "pdf-tailor-session";
+  version: "1.2.0";
+  exportedAt: number;
+  fileName: string | null;
+  pageCount: number;
+  displayUnit: PdfUnit;
+  pageOrder: number[];
+  pageCrops: Record<number, PageCropState>;
+  templates?: CropTemplate[];
 }

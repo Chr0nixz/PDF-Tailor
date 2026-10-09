@@ -46,6 +46,9 @@ export function ExportDialog() {
   const [downloadName, setDownloadName] = useState(buildDownloadName(fileName, lastExportMode));
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressLabel, setProgressLabel] = useState(t("export.preparingExport"));
+  const [exportRate, setExportRate] = useState<string | null>(null);
+  const [exportEta, setExportEta] = useState<number | null>(null);
+  const exportStartTimeRef = useRef<number>(0);
   function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -58,24 +61,25 @@ const workerRef = useRef<Worker | null>(null);
   useFocusTrap(dialogRef, exportDialogOpen);
 
   // Preview page: first page in target indices
-  const selectedTargets = selectedPageIndices.length > 0 ? selectedPageIndices : [currentPageIndex];
+  const currentSourceId = pages[currentPageIndex]?.sourceId ?? currentPageIndex;
+  const selectedTargets = selectedPageIndices.length > 0 ? selectedPageIndices : [currentSourceId];
   const targetPageIndices = useMemo(() => {
     if (exportScope === "current") {
-      return [currentPageIndex];
+      return [currentSourceId];
     }
     if (exportScope === "selected") {
       return selectedTargets;
     }
-    return pages.map((page) => page.pageIndex);
-  }, [currentPageIndex, exportScope, pages, selectedTargets]);
+    return pages.map((page) => page.sourceId);
+  }, [currentSourceId, exportScope, pages, selectedTargets]);
 
-  const previewPageIndex = targetPageIndices[0] ?? currentPageIndex;
-  const previewPage = pages.find((p) => p.pageIndex === previewPageIndex);
+  const previewSourceId = targetPageIndices[0] ?? currentSourceId;
+  const previewPage = pages.find((p) => p.sourceId === previewSourceId);
   const { thumbnails } = useThumbnails(
     null,
     previewPage ? [previewPage] : [],
   );
-  const previewThumbnail = previewPage ? thumbnails[previewPage.pageIndex] : null;
+  const previewThumbnail = previewPage ? thumbnails[previewPage.sourceId] : null;
 
   const croppedPageCount = useMemo(
     () => Object.values(pageCrops).filter((pageCrop) => Boolean(pageCrop.cropRect)).length,
@@ -84,7 +88,7 @@ const workerRef = useRef<Worker | null>(null);
   const rotatedCroppedPages = useMemo(
     () =>
       getRotatedCroppedPages(pages, pageCrops).filter((page) =>
-        targetPageIndices.includes(page.pageIndex),
+        targetPageIndices.includes(page.sourceId),
       ),
     [pageCrops, pages, targetPageIndices],
   );
@@ -100,7 +104,18 @@ const workerRef = useRef<Worker | null>(null);
   );
 
   // Estimated output pages
-  const estimatedOutputPages = targetPageIndices.length;
+  const estimatedOutputPages = useMemo(() => {
+    let total = 0;
+    for (const idx of targetPageIndices) {
+      const crop = pageCrops[idx];
+      if (crop?.cropRect && crop.splitConfig && crop.splitConfig.direction !== "none") {
+        total += 2;
+      } else {
+        total += 1;
+      }
+    }
+    return total;
+  }, [pageCrops, targetPageIndices]);
   // Rough size estimate: original * (crop_ratio_estimate) * compression
   const estimatedSize = useMemo(() => {
     if (!fileBuffer || estimatedOutputPages === 0) return null;
@@ -166,14 +181,6 @@ const workerRef = useRef<Worker | null>(null);
       return;
     }
 
-    if (exportMode === "redraw" && redrawBlocked) {
-      addToast({
-        type: "error",
-        message: t("export.rotatedCropExportError", { list: rotatedCropWarningList }),
-      });
-      return;
-    }
-
     const nextDownloadName = normalizeDownloadName(downloadName, fileName, exportMode);
     const hasInvalidCrop = targetPageIndices.some((pageIndex) => {
       const cropRect = pageCrops[pageIndex]?.cropRect;
@@ -189,6 +196,9 @@ const workerRef = useRef<Worker | null>(null);
     setDownloadName(nextDownloadName);
     setProgressPercent(0);
     setProgressLabel(t("export.preparingExport"));
+    setExportRate(null);
+    setExportEta(null);
+    exportStartTimeRef.current = Date.now();
 
     workerRef.current?.terminate();
     const generation = exportGenerationRef.current + 1;
@@ -211,19 +221,28 @@ const workerRef = useRef<Worker | null>(null);
 
       if (response.type === "EXPORT_PROGRESS") {
         const totalPages = Math.max(1, response.payload.totalPages);
+        const completed = response.payload.completedPages;
         const basePercent =
           response.payload.stage === "saving"
             ? 95
-            : Math.round((response.payload.completedPages / totalPages) * 90);
+            : Math.round((completed / totalPages) * 90);
         setProgressPercent((current) => Math.max(current, basePercent));
         setProgressLabel(
           response.payload.stage === "saving"
             ? t("export.savingFinalPdf")
             : t("export.exportingProgress", {
-                current: response.payload.completedPages,
-                total: response.payload.totalPages,
+                current: completed,
+                total: totalPages,
               }),
         );
+
+        const elapsedSec = (Date.now() - exportStartTimeRef.current) / 1000;
+        if (elapsedSec > 0.4 && completed > 0) {
+          const rate = completed / elapsedSec;
+          setExportRate(rate.toFixed(1));
+          const remaining = Math.max(0, totalPages - completed);
+          setExportEta(rate > 0 ? Math.ceil(remaining / rate) : null);
+        }
         return;
       }
 
@@ -350,12 +369,6 @@ const workerRef = useRef<Worker | null>(null);
               </div>
             </div>
 
-            {redrawBlocked && (
-              <div className="rounded-[18px] border border-amber-300/60 bg-amber-100/65 px-4 py-3 text-sm leading-6 text-amber-950">
-                {t("export.rotatedCropWarning", { list: rotatedCropWarningList })}
-              </div>
-            )}
-
             {/* Filename */}
             <label className="block">
               <div className="mb-2 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
@@ -390,9 +403,8 @@ const workerRef = useRef<Worker | null>(null);
                 </button>
                 <button
                   type="button"
-                  onClick={() => !redrawBlocked && handleExportModeChange("redraw")}
-                  disabled={redrawBlocked}
-                  className={`rounded-[20px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  onClick={() => handleExportModeChange("redraw")}
+                  className={`rounded-[20px] border px-4 py-4 text-left transition ${
                     exportMode === "redraw"
                       ? "border-sky bg-sky/10 dark:border-sky-dark dark:bg-sky-dark/10"
                       : "border-ink/10 bg-white/75 hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20"
@@ -402,11 +414,6 @@ const workerRef = useRef<Worker | null>(null);
                   <div className="mt-1 text-sm leading-6 text-ink/60 dark:text-ink-light/55">
                     {t("export.redrawDesc")}
                   </div>
-                  {redrawBlocked && (
-                    <div className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-amber-900">
-                      {t("export.redrawBlockedHint")}
-                    </div>
-                  )}
                 </button>
               </div>
             </div>
@@ -423,6 +430,16 @@ const workerRef = useRef<Worker | null>(null);
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
+                {(exportRate !== null || (exportEta !== null && exportEta > 0)) && (
+                  <div className="mt-2 flex items-center justify-between text-xs text-ink/60 dark:text-ink-light/55">
+                    {exportRate !== null && (
+                      <span>{t("export.speed", { rate: exportRate })}</span>
+                    )}
+                    {exportEta !== null && exportEta > 0 && (
+                      <span>{t("export.eta", { seconds: exportEta })}</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -437,7 +454,7 @@ const workerRef = useRef<Worker | null>(null);
                 {previewThumbnail?.status === "ready" && previewThumbnail.dataUrl ? (
                   <img
                     src={previewThumbnail.dataUrl}
-                    alt={previewPage ? t("thumbnail.altText", { page: previewPage.pageIndex + 1 }) : ""}
+                    alt={previewPage ? t("thumbnail.altText", { page: previewPage.sourceId + 1 }) : ""}
                     className="max-h-full rounded-[8px] border border-ink/10 bg-paper object-contain shadow-sm dark:border-white/10 dark:bg-paper-dark dark:shadow-none"
                   />
                 ) : (
@@ -446,9 +463,9 @@ const workerRef = useRef<Worker | null>(null);
                   </div>
                 )}
               </div>
-              {previewPage && pageCrops[previewPage.pageIndex]?.cropRect ? (
+              {previewPage && pageCrops[previewPage.sourceId]?.cropRect ? (
                 <div className="mt-2 text-center text-[11px] text-ember dark:text-ember-dark">
-                  {Math.round(pageCrops[previewPage.pageIndex].cropRect!.width)}×{Math.round(pageCrops[previewPage.pageIndex].cropRect!.height)} pt
+                  {Math.round(pageCrops[previewPage.sourceId].cropRect!.width)}×{Math.round(pageCrops[previewPage.sourceId].cropRect!.height)} pt
                 </div>
               ) : null}
             </div>

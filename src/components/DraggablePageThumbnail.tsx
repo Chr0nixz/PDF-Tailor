@@ -131,7 +131,7 @@ export function DraggablePageThumbnail({
       <div
         className="flex-1"
         onContextMenu={handleContextMenu}
-        data-testid={`page-thumbnail-${page.sourceId}`}
+        data-testid={`draggable-page-${page.sourceId}`}
       >
         <PageThumbnail
           page={page}

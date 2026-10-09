@@ -72,6 +72,10 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
   const deleteTemplate = usePdfStore((state) => state.deleteTemplate);
   const applyTemplateToPages = usePdfStore((state) => state.applyTemplateToPages);
   const rotatePage = usePdfStore((state) => state.rotatePage);
+  const mirrorMarginsEnabled = usePdfStore((state) => state.mirrorMarginsEnabled);
+  const setMirrorMarginsEnabled = usePdfStore((state) => state.setMirrorMarginsEnabled);
+  const setPageSplitConfig = usePdfStore((state) => state.setPageSplitConfig);
+  const applySplitConfigToPages = usePdfStore((state) => state.applySplitConfigToPages);
   const addToast = useToastStore((state) => state.addToast);
 
   const currentCrop = selectCurrentPageCrop(
@@ -79,6 +83,7 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
     pageCrops,
     draftCropRect,
     activeDragState.pageIndex,
+    pages,
   );
   const margins = selectCurrentMargins(
     currentPageIndex,
@@ -93,6 +98,9 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
   const presetSizeId = currentCrop?.presetSizeId ?? preferredPresetSizeId;
   const presetAnchor = currentCrop?.presetAnchor ?? preferredPresetAnchor;
   const cropRect = currentCrop?.cropRect ?? null;
+  const currentSplitConfig = currentCrop?.splitConfig ?? pageCrops[sourceId]?.splitConfig;
+  const splitDirection = currentSplitConfig?.direction ?? "none";
+  const splitRatio = currentSplitConfig?.splitRatio ?? 0.5;
   const selectedTargets = selectedPageIndices.length > 0 ? selectedPageIndices : [sourceId];
   const selectedTemplate =
     templates.find((template) => template.id === selectedTemplateId) ?? null;
@@ -310,6 +318,97 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
           <CropModeSelector value={mode} onChange={handleModeChange} />
         </div>
 
+        <div className="rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+              {t("properties.columnSplitLabel")}
+            </div>
+            {splitDirection !== "none" && (
+              <span className="rounded-full bg-pine/15 px-2 py-0.5 text-[10px] font-semibold text-pine dark:bg-pine-dark/20 dark:text-pine-dark">
+                {splitDirection === "vertical"
+                  ? t("properties.splitVerticalShort")
+                  : t("properties.splitHorizontalShort")}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {(["none", "vertical", "horizontal"] as const).map((dir) => (
+              <button
+                key={dir}
+                type="button"
+                onClick={() =>
+                  setPageSplitConfig(
+                    sourceId,
+                    dir === "none"
+                      ? undefined
+                      : { direction: dir, splitRatio: 0.5, gutterPt: 0 },
+                  )
+                }
+                className={`rounded-[14px] border py-2 text-xs font-medium transition ${
+                  splitDirection === dir
+                    ? "border-sky bg-sky/10 text-sky-dark dark:border-sky-dark dark:bg-sky-dark/20 dark:text-sky"
+                    : "border-ink/10 bg-white/80 text-ink/70 hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light/70"
+                }`}
+              >
+                {t(`properties.split_${dir}`)}
+              </button>
+            ))}
+          </div>
+
+          {splitDirection !== "none" && (
+            <div className="mt-4 space-y-3 border-t border-ink/8 pt-3 dark:border-white/10">
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-ink/60 dark:text-ink-light/60">
+                  <span>{t("properties.splitRatio")}</span>
+                  <span className="font-semibold text-ink dark:text-ink-light">
+                    {Math.round(splitRatio * 100)}% / {Math.round((1 - splitRatio) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="0.9"
+                  step="0.02"
+                  value={splitRatio}
+                  onChange={(e) =>
+                    setPageSplitConfig(sourceId, {
+                      direction: splitDirection,
+                      splitRatio: Number.parseFloat(e.target.value),
+                      gutterPt: currentSplitConfig?.gutterPt ?? 0,
+                    })
+                  }
+                  className="w-full accent-pine"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    applySplitConfigToPages(currentSplitConfig, selectedTargets)
+                  }
+                  disabled={selectedTargets.length === 0}
+                  className="flex-1 rounded-full border border-ink/12 bg-white py-1.5 text-xs font-medium text-ink transition hover:border-ink/25 dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
+                >
+                  {t("properties.applySplitToSelected", { count: selectedTargets.length })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    applySplitConfigToPages(
+                      currentSplitConfig,
+                      pages.map((p) => p.sourceId),
+                    )
+                  }
+                  className="flex-1 rounded-full border border-ink/12 bg-white py-1.5 text-xs font-medium text-ink transition hover:border-ink/25 dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
+                >
+                  {t("properties.applySplitToAll")}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {page && (
           <div className="rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
             <div className="mb-3 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
@@ -481,6 +580,24 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
 
       {/* Fixed bottom action area */}
       <div className="mt-4 grid gap-3 shrink-0 border-t border-ink/8 pt-4 dark:border-white/10">
+        <label className="flex items-center justify-between rounded-[16px] border border-ink/8 bg-white/70 px-3 py-2 cursor-pointer select-none text-xs text-ink/75 transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light/75">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              data-testid="mirror-margins-checkbox"
+              checked={mirrorMarginsEnabled}
+              onChange={(e) => setMirrorMarginsEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-ink/20 text-pine accent-pine focus:ring-pine"
+            />
+            <span>{t("properties.mirrorMargins")}</span>
+          </div>
+          <span
+            title={t("properties.mirrorMarginsTooltip")}
+            className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-ink/10 text-[10px] font-semibold text-ink/60 dark:bg-white/10 dark:text-ink-light/60"
+          >
+            ?
+          </span>
+        </label>
         <button
           type="button"
           data-testid="clear-current-page-crop"

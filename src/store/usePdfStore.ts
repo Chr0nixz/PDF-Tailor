@@ -5,6 +5,7 @@ import {
   createPresetCropRect,
   cropRectToMargins,
   marginsToCropRect,
+  mirrorMargins,
 } from "@/utils/coordinates";
 import { findPaperSize } from "@/utils/paperSizes";
 import { normalizeRotation } from "@/utils/documentWarnings";
@@ -16,6 +17,7 @@ import {
   MAX_RECENT_FILES,
 } from "@/utils/persistence";
 import type {
+  ColumnSplitConfig,
   CropTemplate,
   CropHandle,
   CropInteraction,
@@ -24,6 +26,7 @@ import type {
   DocumentLoadState,
   PageCropState,
   PageMetadata,
+  PdfTailorSession,
   PdfUnit,
   PresetAnchor,
   SnapGuide,
@@ -141,7 +144,18 @@ interface PdfStoreState {
   updateDraftCrop: (draftCropRect: CropRect | null, guides?: SnapGuide[]) => void;
   endCropInteraction: (commit: boolean) => void;
   clearCropInteraction: () => void;
-  applyCropToPages: (sourcePageIndex: number, targetPageIndices: number[]) => void;
+  mirrorMarginsEnabled: boolean;
+  setMirrorMarginsEnabled: (enabled: boolean) => void;
+  setPageSplitConfig: (pageIndex: number, config: ColumnSplitConfig | undefined) => void;
+  applySplitConfigToPages: (
+    config: ColumnSplitConfig | undefined,
+    targetPageIndices: number[],
+  ) => void;
+  applyCropToPages: (
+    sourcePageIndex: number,
+    targetPageIndices: number[],
+    options?: { mirrorMargins?: boolean },
+  ) => void;
   pushHistoryCheckpoint: () => void;
   commitHistory: () => void;
   undo: () => void;
@@ -183,6 +197,7 @@ interface PdfStoreState {
   clearDraftCrop: () => void;
   restoreOriginalOrder: () => void;
   isOrderModified: () => boolean;
+  loadSession: (session: PdfTailorSession) => void;
 }
 
 const createEmptyPageCrop = (pageIndex: number): PageCropState => ({
@@ -250,6 +265,7 @@ const initialState = {
   propertiesPanelWidth: persistedPreferences.propertiesPanelWidth ?? 320,
   sidebarCollapsed: persistedPreferences.sidebarCollapsed ?? false,
   propertiesPanelCollapsed: persistedPreferences.propertiesPanelCollapsed ?? false,
+  mirrorMarginsEnabled: persistedPreferences.mirrorMarginsEnabled ?? false,
   viewMode: "crop" as "crop" | "split",
 };
 
@@ -294,6 +310,7 @@ function persistPreferences(state: Pick<
   | "propertiesPanelWidth"
   | "sidebarCollapsed"
   | "propertiesPanelCollapsed"
+  | "mirrorMarginsEnabled"
   | "recentFiles"
 >) {
   const snapshot: PersistedPreferences = {
@@ -313,6 +330,7 @@ function persistPreferences(state: Pick<
     propertiesPanelWidth: state.propertiesPanelWidth,
     sidebarCollapsed: state.sidebarCollapsed,
     propertiesPanelCollapsed: state.propertiesPanelCollapsed,
+    mirrorMarginsEnabled: state.mirrorMarginsEnabled,
     recentFiles: state.recentFiles,
   };
 
@@ -343,6 +361,7 @@ function buildTemplateFromPageCrop(
       bottom: page.heightPt > 0 ? pageCrop.marginsPt.bottom / page.heightPt : 0,
       left: page.widthPt > 0 ? pageCrop.marginsPt.left / page.widthPt : 0,
     },
+    splitConfig: pageCrop.splitConfig ? { ...pageCrop.splitConfig } : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -381,6 +400,7 @@ function applyTemplateToPage(
     presetSizeId: template.mode === "preset" ? template.presetSizeId : undefined,
     presetAnchor: template.mode === "preset" ? template.presetAnchor : undefined,
     marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
+    splitConfig: template.splitConfig ? { ...template.splitConfig } : undefined,
     updatedAt: Date.now(),
   };
 }
@@ -471,60 +491,102 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       return { pages: newPages };
     }),
   setCurrentPage: (pageIndex) =>
-    set({
-      currentPageIndex: pageIndex,
-      selectionAnchorPageIndex: pageIndex,
+    set((state) => {
+      const page = state.pages[pageIndex] ?? resolvePageByStoreId(pageIndex, state.pages);
+      const displayIndex = page ? state.pages.indexOf(page) : pageIndex;
+      return {
+        currentPageIndex: displayIndex >= 0 ? displayIndex : pageIndex,
+        selectionAnchorPageIndex: page ? page.sourceId : pageIndex,
+      };
     }),
   rotatePage: (pageIndex, degrees) =>
     set((state) => {
-      const page = state.pages.find((p) => p.pageIndex === pageIndex);
+      const page = resolvePageByStoreId(pageIndex, state.pages);
       if (!page) return {};
       const newUserRotation = normalizeRotation(page.userRotation + degrees);
       const newPages = state.pages.map((p) =>
-        p.pageIndex === pageIndex ? { ...p, userRotation: newUserRotation } : p,
+        (p.sourceId === page.sourceId || p.pageIndex === page.sourceId)
+          ? { ...p, userRotation: newUserRotation }
+          : p,
       );
       return { pages: newPages };
     }),
-  toggleSelectedPage: (pageIndex, multiSelect = false, rangeSelect = false) =>
+  toggleSelectedPage: (pageIdentifier, multiSelect = false, rangeSelect = false) =>
     set((state) => {
+      const page =
+        resolvePageByStoreId(pageIdentifier, state.pages) ??
+        state.pages[pageIdentifier];
+      if (!page) return state;
+
+      const sourceId = page.sourceId;
+      const displayIndex = state.pages.findIndex((p) => p.sourceId === sourceId);
+      const targetDisplayIndex = displayIndex >= 0 ? displayIndex : 0;
+
       if (rangeSelect) {
-        const anchor = state.selectionAnchorPageIndex ?? state.currentPageIndex ?? pageIndex;
+        const anchorSourceId = state.selectionAnchorPageIndex ?? sourceId;
+        const anchorDispIdx = state.pages.findIndex(
+          (p) => p.sourceId === anchorSourceId,
+        );
+        const startDisp = Math.min(
+          anchorDispIdx >= 0 ? anchorDispIdx : targetDisplayIndex,
+          targetDisplayIndex,
+        );
+        const endDisp = Math.max(
+          anchorDispIdx >= 0 ? anchorDispIdx : targetDisplayIndex,
+          targetDisplayIndex,
+        );
+        const rangeSourceIds = state.pages
+          .slice(startDisp, endDisp + 1)
+          .map((p) => p.sourceId);
+
         return {
-          selectedPageIndices: buildRangeSelection(anchor, pageIndex),
-          currentPageIndex: pageIndex,
-          selectionAnchorPageIndex: anchor,
+          selectedPageIndices: rangeSourceIds,
+          currentPageIndex: targetDisplayIndex,
+          selectionAnchorPageIndex: anchorSourceId,
         };
       }
 
       if (!multiSelect) {
         return {
-          selectedPageIndices: [pageIndex],
-          currentPageIndex: pageIndex,
-          selectionAnchorPageIndex: pageIndex,
+          selectedPageIndices: [sourceId],
+          currentPageIndex: targetDisplayIndex,
+          selectionAnchorPageIndex: sourceId,
         };
       }
 
-      const exists = state.selectedPageIndices.includes(pageIndex);
-      const selectedPageIndices = exists
-        ? state.selectedPageIndices.filter((item) => item !== pageIndex)
-        : [...state.selectedPageIndices, pageIndex].sort((a, b) => a - b);
+      const exists = state.selectedPageIndices.includes(sourceId);
+      const nextSelected = exists
+        ? state.selectedPageIndices.filter((item) => item !== sourceId)
+        : [...state.selectedPageIndices, sourceId].sort((a, b) => a - b);
 
       return {
         selectedPageIndices:
-          selectedPageIndices.length > 0 ? selectedPageIndices : [pageIndex],
-        currentPageIndex: pageIndex,
-        selectionAnchorPageIndex: pageIndex,
+          nextSelected.length > 0 ? nextSelected : [sourceId],
+        currentPageIndex: targetDisplayIndex,
+        selectionAnchorPageIndex: sourceId,
       };
     }),
   setSelectedPages: (pageIndices, options) =>
     set((state) => {
       const selectedPageIndices = normalizePageSelection(pageIndices, state.pageCount);
-      const fallbackCurrentPageIndex =
-        selectedPageIndices.at(-1) ?? Math.min(state.currentPageIndex, Math.max(0, state.pageCount - 1));
-      const currentPageIndex =
-        options?.currentPageIndex !== undefined
-          ? options.currentPageIndex
-          : fallbackCurrentPageIndex;
+      let currentPageIndex: number;
+      if (options?.currentPageIndex !== undefined) {
+        currentPageIndex = options.currentPageIndex;
+      } else if (selectedPageIndices.length > 0) {
+        const lastSelectedSourceId = selectedPageIndices.at(-1);
+        const dispIdx = state.pages.findIndex(
+          (p) => p.sourceId === lastSelectedSourceId,
+        );
+        currentPageIndex =
+          dispIdx >= 0
+            ? dispIdx
+            : Math.min(state.currentPageIndex, Math.max(0, state.pageCount - 1));
+      } else {
+        currentPageIndex = Math.min(
+          state.currentPageIndex,
+          Math.max(0, state.pageCount - 1),
+        );
+      }
 
       return {
         selectedPageIndices,
@@ -532,7 +594,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         selectionAnchorPageIndex:
           options?.anchorPageIndex !== undefined
             ? options.anchorPageIndex
-            : selectedPageIndices[0] ?? null,
+            : (selectedPageIndices[0] ?? null),
       };
     }),
   setZoom: (zoom) => {
@@ -694,13 +756,25 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       draftCropRect: null,
       activeSnapGuides: [],
     }),
-  applyCropToPages: (sourcePageIndex, targetPageIndices) =>
+  setMirrorMarginsEnabled: (mirrorMarginsEnabled) => {
+    set({ mirrorMarginsEnabled });
+    persistPreferences(get());
+  },
+  applyCropToPages: (sourcePageIndex, targetPageIndices, options) =>
     set((state) => {
-      const source = state.pageCrops[sourcePageIndex];
+      const sourcePage = resolvePageByStoreId(sourcePageIndex, state.pages);
+      const source = state.pageCrops[sourcePage?.sourceId ?? sourcePageIndex];
 
-      if (!source?.cropRect || targetPageIndices.length === 0) {
+      if (!source?.cropRect || targetPageIndices.length === 0 || !sourcePage) {
         return state;
       }
+
+      const sourceDisplayIdx = state.pages.findIndex(
+        (p) => p.sourceId === sourcePage.sourceId,
+      );
+      const isSourceOdd =
+        (sourceDisplayIdx >= 0 ? sourceDisplayIdx : sourcePage.sourceId) % 2 === 0;
+      const shouldMirror = options?.mirrorMargins ?? state.mirrorMarginsEnabled;
 
       const nextPageCrops = { ...state.pageCrops };
 
@@ -711,18 +785,50 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
           continue;
         }
 
-        const nextCropRect: CropRect = {
-          ...source.cropRect,
-          pageIndex,
-        };
+        const targetSourceId = page.sourceId;
+        const targetDisplayIdx = state.pages.findIndex(
+          (p) => p.sourceId === targetSourceId,
+        );
+        const isTargetOdd =
+          (targetDisplayIdx >= 0 ? targetDisplayIdx : targetSourceId) % 2 === 0;
+        const needsMirror = shouldMirror && isSourceOdd !== isTargetOdd;
 
-        nextPageCrops[pageIndex] = {
-          ...(state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex)),
+        let nextCropRect: CropRect;
+        let nextMargins = source.marginsPt;
+
+        if (needsMirror) {
+          nextMargins = mirrorMargins(source.marginsPt);
+          nextCropRect = marginsToCropRect(
+            nextMargins,
+            page.widthPt,
+            page.heightPt,
+            targetSourceId,
+          );
+        } else if (
+          page.widthPt === sourcePage.widthPt &&
+          page.heightPt === sourcePage.heightPt
+        ) {
+          nextCropRect = {
+            ...source.cropRect,
+            pageIndex: targetSourceId,
+          };
+        } else {
+          nextCropRect = marginsToCropRect(
+            source.marginsPt,
+            page.widthPt,
+            page.heightPt,
+            targetSourceId,
+          );
+        }
+
+        nextPageCrops[targetSourceId] = {
+          ...(state.pageCrops[targetSourceId] ?? createEmptyPageCrop(targetSourceId)),
           cropRect: nextCropRect,
           mode: source.mode,
           presetSizeId: source.presetSizeId,
           presetAnchor: source.presetAnchor,
-          marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
+          marginsPt: nextMargins,
+          splitConfig: source.splitConfig,
           updatedAt: Date.now(),
         };
       }
@@ -732,6 +838,51 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
         lastAction: i18n.t("history.action.batchApply") as string,
+      };
+    }),
+  setPageSplitConfig: (pageIndex, config) =>
+    set((state) => {
+      const page = resolvePageByStoreId(pageIndex, state.pages);
+      const targetSourceId = page?.sourceId ?? pageIndex;
+      const current = state.pageCrops[targetSourceId] ?? createEmptyPageCrop(targetSourceId);
+
+      const nextPageCrops = {
+        ...state.pageCrops,
+        [targetSourceId]: {
+          ...current,
+          splitConfig: config,
+          updatedAt: Date.now(),
+        },
+      };
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+        lastAction: i18n.t("history.action.splitConfig") as string,
+      };
+    }),
+  applySplitConfigToPages: (config, targetPageIndices) =>
+    set((state) => {
+      const nextPageCrops = { ...state.pageCrops };
+      for (const pageIndex of targetPageIndices) {
+        const page = resolvePageByStoreId(pageIndex, state.pages);
+        if (!page) continue;
+        const targetSourceId = page.sourceId;
+        const current = state.pageCrops[targetSourceId] ?? createEmptyPageCrop(targetSourceId);
+
+        nextPageCrops[targetSourceId] = {
+          ...current,
+          splitConfig: config,
+          updatedAt: Date.now(),
+        };
+      }
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+        lastAction: i18n.t("history.action.splitConfig") as string,
       };
     }),
   pushHistoryCheckpoint: () =>
@@ -886,7 +1037,9 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
     }),
   copyCrop: (pageIndex) =>
     set((state) => {
-      const current = state.pageCrops[pageIndex];
+      const page = resolvePageByStoreId(pageIndex, state.pages);
+      const sourceId = page?.sourceId ?? pageIndex;
+      const current = state.pageCrops[sourceId] ?? state.pageCrops[pageIndex];
       if (!current?.cropRect) {
         return state;
       }
@@ -905,10 +1058,9 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         const page = resolvePageByStoreId(pageIndex, state.pages);
         if (!page) continue;
 
+        const targetSourceId = page.sourceId;
         const sourceRect = clipboard.cropRect!;
-        const sourcePage = state.pages.find(
-          (item) => item.pageIndex === clipboard.pageIndex,
-        );
+        const sourcePage = resolvePageByStoreId(clipboard.pageIndex, state.pages);
 
         let nextCropRect: CropRect;
         if (sourcePage) {
@@ -916,7 +1068,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
           const scaleY = page.heightPt / sourcePage.heightPt;
 
           nextCropRect = {
-            pageIndex,
+            pageIndex: targetSourceId,
             x: sourceRect.x * scaleX,
             y: sourceRect.y * scaleY,
             width: sourceRect.width * scaleX,
@@ -925,17 +1077,18 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         } else {
           nextCropRect = {
             ...sourceRect,
-            pageIndex,
+            pageIndex: targetSourceId,
           };
         }
 
-        nextPageCrops[pageIndex] = {
-          ...(state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex)),
+        nextPageCrops[targetSourceId] = {
+          ...(state.pageCrops[targetSourceId] ?? createEmptyPageCrop(targetSourceId)),
           cropRect: nextCropRect,
           mode: clipboard.mode,
           presetSizeId: clipboard.presetSizeId,
           presetAnchor: clipboard.presetAnchor,
           marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
+          splitConfig: clipboard.splitConfig ? { ...clipboard.splitConfig } : undefined,
           updatedAt: Date.now(),
         };
       }
@@ -949,8 +1102,9 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
     }),
   saveTemplateFromPage: (pageIndex, name, templateId = null, defaultName) => {
     const state = get();
-    const page = state.pages.find((item) => item.pageIndex === pageIndex);
-    const pageCrop = state.pageCrops[pageIndex];
+    const page = resolvePageByStoreId(pageIndex, state.pages);
+    const sourceId = page?.sourceId ?? pageIndex;
+    const pageCrop = state.pageCrops[sourceId] ?? state.pageCrops[pageIndex];
 
     if (!page || !pageCrop?.cropRect) {
       return null;
@@ -1024,8 +1178,9 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
           continue;
         }
 
-        nextPageCrops[pageIndex] = {
-          ...(state.pageCrops[pageIndex] ?? createEmptyPageCrop(pageIndex)),
+        const targetSourceId = page.sourceId;
+        nextPageCrops[targetSourceId] = {
+          ...(state.pageCrops[targetSourceId] ?? createEmptyPageCrop(targetSourceId)),
           ...applyTemplateToPage(template, page),
         };
       }
@@ -1044,18 +1199,19 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
   },
   nudgeCrop: (pageIndex, dx, dy) =>
     set((state) => {
-      const current = state.pageCrops[pageIndex];
+      const page = resolvePageByStoreId(pageIndex, state.pages);
+      if (!page) return state;
+
+      const targetSourceId = page.sourceId;
+      const current = state.pageCrops[targetSourceId] ?? state.pageCrops[pageIndex];
       if (!current?.cropRect) {
         return state;
       }
 
-      const page = resolvePageByStoreId(pageIndex, state.pages);
-      if (!page) return state;
-
       const rect = current.cropRect;
       const clamped = clampCropRect(
         {
-          pageIndex,
+          pageIndex: targetSourceId,
           x: rect.x + dx,
           y: rect.y - dy, // PDF y goes bottom-to-top, invert dy for screen intuition
           width: rect.width,
@@ -1070,7 +1226,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       return {
         pageCrops: {
           ...state.pageCrops,
-          [pageIndex]: {
+          [targetSourceId]: {
             ...current,
             cropRect: clamped,
             marginsPt,
@@ -1129,10 +1285,16 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
       const newCurrentIndex = currentSourceId !== undefined
         ? sorted.findIndex((p) => p.sourceId === currentSourceId)
         : 0;
+      const preservedSelected = state.selectedPageIndices.filter((sid) =>
+        sorted.some((p) => p.sourceId === sid),
+      );
       return {
         pages: sorted,
         currentPageIndex: newCurrentIndex >= 0 ? newCurrentIndex : 0,
-        selectedPageIndices: sorted.map((p) => p.sourceId),
+        selectedPageIndices:
+          preservedSelected.length > 0
+            ? preservedSelected
+            : (sorted[0] ? [sorted[0].sourceId] : []),
         selectionAnchorPageIndex: currentSourceId ?? sorted[0]?.sourceId ?? null,
       };
     }),
@@ -1140,6 +1302,40 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
     const { pages } = get();
     if (pages.length === 0) return false;
     return !pages.every((p, i) => p.sourceId === i);
+  },
+  loadSession: (session) => {
+    set((state) => {
+      let nextPages = state.pages;
+      if (Array.isArray(session.pageOrder) && session.pageOrder.length > 0 && state.pages.length > 0) {
+        const sortedPages: PageMetadata[] = [];
+        for (const sid of session.pageOrder) {
+          const p = state.pages.find((item) => item.sourceId === sid);
+          if (p) sortedPages.push(p);
+        }
+        for (const p of state.pages) {
+          if (!sortedPages.some((item) => item.sourceId === p.sourceId)) {
+            sortedPages.push(p);
+          }
+        }
+        nextPages = sortedPages;
+      }
+
+      const nextPast = [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT);
+
+      return {
+        pages: nextPages,
+        pageCrops: session.pageCrops ?? state.pageCrops,
+        displayUnit: session.displayUnit ?? state.displayUnit,
+        templates:
+          session.templates && session.templates.length > 0
+            ? session.templates
+            : state.templates,
+        past: nextPast,
+        future: [],
+        lastAction: i18n.t("history.action.loadSession") as string,
+      };
+    });
+    persistPreferences(get());
   },
 }));
 

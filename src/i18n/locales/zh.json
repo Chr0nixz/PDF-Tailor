@@ -53,7 +53,10 @@
       "clear": "清除裁剪",
       "paste": "粘贴裁剪",
       "templateApply": "应用模板",
-      "nudge": "微调裁剪"
+      "nudge": "微调裁剪",
+      "loadSession": "载入工程",
+      "splitConfig": "分栏拆分设置",
+      "batchSplit": "批量分栏拆分"
     },
     "undone": "已撤销：{{action}}",
     "redone": "已重做：{{action}}"
@@ -120,12 +123,23 @@
     "marginLeft": "左边距",
     "marginHint": "预设纸张、九宫格定位和数值边距已经联动。你可以先在当前页调整，再批量应用到选中页或整份文档。",
     "applyAll": "应用到全部页面 ({{count}})",
+    "mirrorMargins": "镜像奇偶页边距（对开装订线）",
+    "mirrorMarginsTooltip": "双面排版时，自动将奇数页与偶数页的左右边距互换",
     "expand": "展开",
     "collapse": "收起",
     "batchRulesLabel": "批量选择",
     "batchRuleLabel": "当前选择",
     "batchRuleValue": "已选 {{count}} 页",
-    "batchRulesExpandedHint": "「每 N 页」从第 1 页开始每 N 页选一页。"
+    "batchRulesExpandedHint": "「每 N 页」从第 1 页开始每 N 页选一页。",
+    "columnSplitLabel": "分栏切页拆分",
+    "splitVerticalShort": "左右双栏",
+    "splitHorizontalShort": "上下两半",
+    "split_none": "单栏无拆分",
+    "split_vertical": "左右双栏",
+    "split_horizontal": "上下两半",
+    "splitRatio": "中缝分割比例",
+    "applySplitToSelected": "应用分栏到选中页 ({{count}})",
+    "applySplitToAll": "应用分栏到全部"
   },
   "autoCrop": {
     "label": "自动检测",
@@ -321,6 +335,17 @@
     "summary": "摘要",
     "summaryOutputPages": "输出页数",
     "summaryCroppedPages": "裁剪页数",
-    "summaryEstSize": "预估大小"
+    "summaryEstSize": "预估大小",
+    "speed": "速率：{{rate}} 页/秒",
+    "eta": "预计剩余：{{seconds}} 秒"
+  },
+  "session": {
+    "exportSession": "保存工程 (.pdftailor)",
+    "importSession": "载入工程 (.pdftailor)",
+    "openPdfFirst": "请先打开 PDF 文件后再保存工程。",
+    "exportedSuccess": "工程配置已成功保存。",
+    "loadedSuccess": "工程配置已成功载入并应用。",
+    "invalidFormat": "无法识别的文件格式，请提供合法的 .pdftailor 会话文件。",
+    "readFailed": "读取工程文件失败。"
   }
 }

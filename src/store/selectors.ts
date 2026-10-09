@@ -13,11 +13,18 @@ export function selectCurrentPageCrop(
   pageCrops: Record<number, PageCropState>,
   draftCropRect?: CropRect | null,
   dragPageIndex?: number | null,
+  pages?: PageMetadata[],
 ) {
-  if (draftCropRect && dragPageIndex === currentPageIndex) {
+  const page = pages ? pages[currentPageIndex] : undefined;
+  const sourceId = page?.sourceId ?? currentPageIndex;
+
+  if (
+    draftCropRect &&
+    (dragPageIndex === currentPageIndex || dragPageIndex === sourceId)
+  ) {
     return {
-      ...(pageCrops[currentPageIndex] ?? {
-        pageIndex: currentPageIndex,
+      ...(pageCrops[sourceId] ?? {
+        pageIndex: sourceId,
         cropRect: null,
         mode: "free" as const,
         marginsPt: emptyMargins,
@@ -27,7 +34,7 @@ export function selectCurrentPageCrop(
     };
   }
 
-  return pageCrops[currentPageIndex] ?? null;
+  return pageCrops[sourceId] ?? null;
 }
 
 export function selectCurrentMargins(

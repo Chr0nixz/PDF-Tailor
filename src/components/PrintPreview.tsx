@@ -41,7 +41,7 @@ export function PrintPreview({ documentProxy }: PrintPreviewProps) {
     const render = async () => {
       renderTaskRef.current?.cancel();
       try {
-        const pdfPage = await documentProxy.getPage(previewPageIndex + 1);
+        const pdfPage = await documentProxy.getPage(page.sourceId + 1);
         if (cancelled) return;
 
         // Scale to fit nicely in preview (max 400pt width)
@@ -78,7 +78,7 @@ export function PrintPreview({ documentProxy }: PrintPreviewProps) {
       cancelled = true;
       renderTaskRef.current?.cancel();
     };
-  }, [printPreviewOpen, documentProxy, previewPageIndex]);
+  }, [printPreviewOpen, documentProxy, page]);
 
   if (!printPreviewOpen) return null;
 
