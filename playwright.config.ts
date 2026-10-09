@@ -17,7 +17,9 @@ export default defineConfig({
     locale: "zh-CN",
   },
   webServer: {
-    command: "npm run dev -- --host 127.0.0.1 --port 4173",
+    command: isCI
+      ? "npm run preview -- --host 127.0.0.1 --port 4173"
+      : "npm run dev -- --host 127.0.0.1 --port 4173",
     port: 4173,
     reuseExistingServer: true,
     timeout: isCI ? 90_000 : 60_000,
