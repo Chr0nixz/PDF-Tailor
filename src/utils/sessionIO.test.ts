@@ -137,4 +137,72 @@ describe("sessionIO", () => {
       gutterPt: 15,
     });
   });
+
+  it("preserves valid exclusionBands and sanitizes corrupt exclusion values", () => {
+    const raw = {
+      format: "pdf-tailor-session",
+      version: "1.4.0",
+      exportedAt: 3000,
+      fileName: "paper-with-header.pdf",
+      pageCount: 1,
+      displayUnit: "pt",
+      pageOrder: [0],
+      pageCrops: {
+        "0": {
+          pageIndex: 0,
+          cropRect: { x: 50, y: 50, width: 400, height: 600 },
+          marginsPt: { top: 0, right: 0, bottom: 0, left: 0 },
+          exclusionBands: {
+            headerPt: 35.5,
+            footerPt: "corrupt-string",
+          },
+        },
+      },
+    };
+
+    const result = parseAndValidateSession(JSON.stringify(raw), 1);
+    expect(result.valid).toBe(true);
+    expect(result.session?.pageCrops[0]?.exclusionBands).toEqual({
+      headerPt: 35.5,
+      footerPt: 0,
+    });
+  });
+
+  it("preserves valid grid splitConfig and clamps out-of-range rows and columns", () => {
+    const raw = {
+      format: "pdf-tailor-session",
+      version: "1.4.0",
+      exportedAt: 4000,
+      fileName: "handouts.pdf",
+      pageCount: 1,
+      displayUnit: "pt",
+      pageOrder: [0],
+      pageCrops: {
+        "0": {
+          pageIndex: 0,
+          cropRect: { x: 0, y: 0, width: 600, height: 800 },
+          marginsPt: { top: 0, right: 0, bottom: 0, left: 0 },
+          splitConfig: {
+            direction: "grid",
+            rows: 10, // Must be clamped to 4
+            columns: "not-a-number", // Fallback to 2
+            readingOrder: "ttb-ltr",
+            gutterXPt: 12,
+            gutterYPt: -5, // Negative clamped to 0
+          },
+        },
+      },
+    };
+
+    const result = parseAndValidateSession(JSON.stringify(raw), 1);
+    expect(result.valid).toBe(true);
+    expect(result.session?.pageCrops[0]?.splitConfig).toEqual({
+      direction: "grid",
+      rows: 4,
+      columns: 2,
+      readingOrder: "ttb-ltr",
+      gutterXPt: 12,
+      gutterYPt: 0,
+    });
+  });
 });

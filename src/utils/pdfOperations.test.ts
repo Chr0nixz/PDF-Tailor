@@ -355,5 +355,53 @@ describe("pdfOperations", () => {
       expect(pages[0].getSize()).toEqual({ width: 100, height: 300 });
       expect(pages[1].getSize()).toEqual({ width: 100, height: 300 });
     });
+
+    it("splits a single page into 4 sequential grid pages in crop-box export", async () => {
+      const payload: WorkerExportPayload = {
+        fileBuffer: await createSourcePdf(),
+        exportMode: "crop-box",
+        exportPageIndices: [0],
+        pageCrops: {
+          0: {
+            pageIndex: 0,
+            cropRect: { x: 50, y: 100, width: 200, height: 300, pageIndex: 0 },
+            mode: "free",
+            marginsPt: { top: 0, right: 0, bottom: 0, left: 0 },
+            updatedAt: Date.now(),
+            splitConfig: {
+              direction: "grid",
+              rows: 2,
+              columns: 2,
+              readingOrder: "ltr-ttb",
+            },
+          },
+        },
+      };
+
+      const exported = await exportPdf(payload);
+      const document = await PDFDocument.load(exported);
+      expect(document.getPageCount()).toBe(4);
+    });
+
+    it("overlays re-paginated page numbers onto exported documents", async () => {
+      const payload: WorkerExportPayload = {
+        fileBuffer: await createSourcePdf(),
+        exportMode: "crop-box",
+        exportPageIndices: [0, 1],
+        pageCrops: {},
+        paginationConfig: {
+          enabled: true,
+          position: "bottom-center",
+          format: "page-n-of-total",
+          fontSizePt: 9,
+          marginPt: 20,
+        },
+      };
+
+      const exported = await exportPdf(payload);
+      const document = await PDFDocument.load(exported);
+      expect(document.getPageCount()).toBe(2);
+      expect(exported.byteLength).toBeGreaterThan(1000);
+    });
   });
 });

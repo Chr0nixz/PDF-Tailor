@@ -75,12 +75,24 @@ export interface PageMargins {
   left: number;
 }
 
-export type ColumnSplitDirection = "none" | "vertical" | "horizontal";
+export type ColumnSplitDirection = "none" | "vertical" | "horizontal" | "grid";
+
+export type GridReadingOrder = "ltr-ttb" | "ttb-ltr" | "rtl-ttb";
 
 export interface ColumnSplitConfig {
   direction: ColumnSplitDirection;
-  splitRatio: number;
+  splitRatio?: number;
   gutterPt?: number;
+  rows?: number;
+  columns?: number;
+  gutterXPt?: number;
+  gutterYPt?: number;
+  readingOrder?: GridReadingOrder;
+}
+
+export interface ExclusionBands {
+  headerPt: number;
+  footerPt: number;
 }
 
 export interface PageCropState {
@@ -92,6 +104,7 @@ export interface PageCropState {
   marginsPt: PageMargins;
   updatedAt: number;
   splitConfig?: ColumnSplitConfig;
+  exclusionBands?: ExclusionBands;
 }
 
 export interface CropTemplate {
@@ -104,6 +117,25 @@ export interface CropTemplate {
   createdAt: number;
   updatedAt: number;
   splitConfig?: ColumnSplitConfig;
+  exclusionBands?: ExclusionBands;
+}
+
+export type PageNumberPosition =
+  | "bottom-center"
+  | "bottom-right"
+  | "bottom-left"
+  | "top-right"
+  | "top-center";
+
+export type PageNumberFormat = "number-only" | "page-n-of-total" | "slash-total";
+
+export interface PaginationConfig {
+  enabled: boolean;
+  position: PageNumberPosition;
+  format: PageNumberFormat;
+  fontSizePt?: number;
+  marginPt?: number;
+  startNumber?: number;
 }
 
 export interface WorkerExportPayload {
@@ -111,6 +143,7 @@ export interface WorkerExportPayload {
   pageCrops: Record<number, PageCropState>;
   exportMode: ExportMode;
   exportPageIndices?: number[];
+  paginationConfig?: PaginationConfig;
 }
 
 export interface PdfTailorSession {

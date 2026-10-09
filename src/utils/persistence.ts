@@ -1,4 +1,4 @@
-import type { ColumnSplitConfig, CropTemplate, PdfUnit, PresetAnchor } from "@/types";
+import type { ColumnSplitConfig, CropTemplate, ExclusionBands, PdfUnit, PresetAnchor } from "@/types";
 import type { KeyBinding } from "@/hooks/useKeyBindings";
 
 const STORAGE_KEY = "pdf-tailor.preferences.v1";
@@ -63,7 +63,39 @@ function normalizeMarginsRatio(value: unknown) {
 function normalizeSplitConfig(value: unknown): ColumnSplitConfig | undefined {
   if (!isRecord(value)) return undefined;
   const direction = value.direction;
-  if (direction !== "vertical" && direction !== "horizontal") return undefined;
+  if (direction !== "vertical" && direction !== "horizontal" && direction !== "grid") return undefined;
+
+  if (direction === "grid") {
+    const rows =
+      typeof value.rows === "number" && Number.isFinite(value.rows)
+        ? Math.max(1, Math.min(4, Math.floor(value.rows)))
+        : 2;
+    const columns =
+      typeof value.columns === "number" && Number.isFinite(value.columns)
+        ? Math.max(1, Math.min(4, Math.floor(value.columns)))
+        : 2;
+    const gutterXPt =
+      typeof value.gutterXPt === "number" && Number.isFinite(value.gutterXPt)
+        ? Math.max(0, value.gutterXPt)
+        : 0;
+    const gutterYPt =
+      typeof value.gutterYPt === "number" && Number.isFinite(value.gutterYPt)
+        ? Math.max(0, value.gutterYPt)
+        : 0;
+    const readingOrder =
+      value.readingOrder === "ttb-ltr" || value.readingOrder === "rtl-ttb"
+        ? (value.readingOrder as "ttb-ltr" | "rtl-ttb")
+        : "ltr-ttb";
+    return {
+      direction: "grid",
+      rows,
+      columns,
+      gutterXPt,
+      gutterYPt,
+      readingOrder,
+    };
+  }
+
   const splitRatio =
     typeof value.splitRatio === "number" && Number.isFinite(value.splitRatio)
       ? Math.max(0.05, Math.min(0.95, value.splitRatio))
@@ -73,6 +105,22 @@ function normalizeSplitConfig(value: unknown): ColumnSplitConfig | undefined {
       ? Math.max(0, value.gutterPt)
       : 0;
   return { direction, splitRatio, gutterPt };
+}
+
+function normalizeExclusionBands(value: unknown): ExclusionBands | undefined {
+  if (!isRecord(value)) return undefined;
+  const headerPt =
+    typeof value.headerPt === "number" && Number.isFinite(value.headerPt)
+      ? Math.max(0, value.headerPt)
+      : 0;
+  const footerPt =
+    typeof value.footerPt === "number" && Number.isFinite(value.footerPt)
+      ? Math.max(0, value.footerPt)
+      : 0;
+  if (headerPt > 0 || footerPt > 0) {
+    return { headerPt, footerPt };
+  }
+  return undefined;
 }
 
 function normalizeTemplate(value: unknown): CropTemplate | null {
@@ -102,6 +150,7 @@ function normalizeTemplate(value: unknown): CropTemplate | null {
         : undefined,
     marginsRatio,
     splitConfig: normalizeSplitConfig(value.splitConfig),
+    exclusionBands: normalizeExclusionBands(value.exclusionBands),
     createdAt: typeof value.createdAt === "number" ? value.createdAt : Date.now(),
     updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : Date.now(),
   };

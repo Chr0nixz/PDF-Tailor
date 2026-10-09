@@ -3,6 +3,7 @@ import { degrees, PDFDocument } from "pdf-lib";
 import type { CropRect, PageCropState, WorkerExportPayload } from "@/types";
 import { normalizeRotation } from "@/utils/documentWarnings";
 import { splitCropRect } from "@/utils/columnSplit";
+import { applyPaginationToDocument } from "@/utils/pagination";
 
 interface ExportProgressEvent {
   completedPages: number;
@@ -65,7 +66,9 @@ async function exportWithCropBoxesAndProgress(
     const sourcePageIndex = targetPageIndices[index];
     const pageCrop = payload.pageCrops[sourcePageIndex];
     const cropRect = getValidCropRect(pageCrop);
-    const segments = cropRect ? splitCropRect(cropRect, pageCrop?.splitConfig) : [null];
+    const segments = cropRect
+      ? splitCropRect(cropRect, pageCrop?.splitConfig, pageCrop?.exclusionBands)
+      : [null];
 
     for (const segment of segments) {
       const [copiedPage] = await outputDoc.copyPages(sourceDoc, [sourcePageIndex]);
@@ -88,6 +91,10 @@ async function exportWithCropBoxesAndProgress(
     totalPages: targetPageIndices.length,
     stage: "saving",
   });
+
+  if (payload.paginationConfig?.enabled) {
+    await applyPaginationToDocument(outputDoc, payload.paginationConfig);
+  }
 
   return new Uint8Array(await outputDoc.save());
 }
@@ -231,7 +238,11 @@ async function exportWithRedraw(payload: WorkerExportPayload, options?: ExportPd
 
     const originalWidth = sourcePage.getWidth();
     const originalHeight = sourcePage.getHeight();
-    const segments = splitCropRect(cropRect, pageCrop?.splitConfig);
+    const segments = splitCropRect(
+      cropRect,
+      pageCrop?.splitConfig,
+      pageCrop?.exclusionBands,
+    );
 
     for (const segment of segments) {
       const redrawConfig = computeRedrawConfig(
@@ -276,6 +287,10 @@ async function exportWithRedraw(payload: WorkerExportPayload, options?: ExportPd
     totalPages: targetPageIndices.length,
     stage: "saving",
   });
+
+  if (payload.paginationConfig?.enabled) {
+    await applyPaginationToDocument(outputDoc, payload.paginationConfig);
+  }
 
   return new Uint8Array(await outputDoc.save());
 }

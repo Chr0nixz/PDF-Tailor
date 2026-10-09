@@ -1,4 +1,4 @@
-import type { CropTemplate, PageCropState, PdfTailorSession, PdfUnit } from "@/types";
+import type { CropTemplate, GridReadingOrder, PageCropState, PdfTailorSession, PdfUnit } from "@/types";
 
 export interface SessionValidationResult {
   valid: boolean;
@@ -84,21 +84,70 @@ function sanitizePageCrops(rawCrops: unknown): Record<number, PageCropState> {
     if (
       rawSplit &&
       typeof rawSplit === "object" &&
-      (rawSplit.direction === "vertical" || rawSplit.direction === "horizontal")
+      (rawSplit.direction === "vertical" ||
+        rawSplit.direction === "horizontal" ||
+        rawSplit.direction === "grid")
     ) {
-      const splitRatio =
-        typeof rawSplit.splitRatio === "number" && Number.isFinite(rawSplit.splitRatio)
-          ? Math.max(0.05, Math.min(0.95, rawSplit.splitRatio))
-          : 0.5;
-      const gutterPt =
-        typeof rawSplit.gutterPt === "number" && Number.isFinite(rawSplit.gutterPt)
-          ? Math.max(0, rawSplit.gutterPt)
+      if (rawSplit.direction === "grid") {
+        const rows =
+          typeof rawSplit.rows === "number" && Number.isFinite(rawSplit.rows)
+            ? Math.max(1, Math.min(4, Math.floor(rawSplit.rows)))
+            : 2;
+        const columns =
+          typeof rawSplit.columns === "number" && Number.isFinite(rawSplit.columns)
+            ? Math.max(1, Math.min(4, Math.floor(rawSplit.columns)))
+            : 2;
+        const gutterXPt =
+          typeof rawSplit.gutterXPt === "number" && Number.isFinite(rawSplit.gutterXPt)
+            ? Math.max(0, rawSplit.gutterXPt)
+            : 0;
+        const gutterYPt =
+          typeof rawSplit.gutterYPt === "number" && Number.isFinite(rawSplit.gutterYPt)
+            ? Math.max(0, rawSplit.gutterYPt)
+            : 0;
+        const readingOrder: GridReadingOrder =
+          rawSplit.readingOrder === "ttb-ltr" || rawSplit.readingOrder === "rtl-ttb"
+            ? rawSplit.readingOrder
+            : "ltr-ttb";
+        splitConfig = {
+          direction: "grid" as const,
+          rows,
+          columns,
+          gutterXPt,
+          gutterYPt,
+          readingOrder,
+        };
+      } else {
+        const splitRatio =
+          typeof rawSplit.splitRatio === "number" && Number.isFinite(rawSplit.splitRatio)
+            ? Math.max(0.05, Math.min(0.95, rawSplit.splitRatio))
+            : 0.5;
+        const gutterPt =
+          typeof rawSplit.gutterPt === "number" && Number.isFinite(rawSplit.gutterPt)
+            ? Math.max(0, rawSplit.gutterPt)
+            : 0;
+        splitConfig = {
+          direction: rawSplit.direction as "vertical" | "horizontal",
+          splitRatio,
+          gutterPt,
+        };
+      }
+    }
+
+    const rawBands = crop.exclusionBands as Record<string, unknown> | null | undefined;
+    let exclusionBands = undefined;
+    if (rawBands && typeof rawBands === "object") {
+      const headerPt =
+        typeof rawBands.headerPt === "number" && Number.isFinite(rawBands.headerPt)
+          ? Math.max(0, rawBands.headerPt)
           : 0;
-      splitConfig = {
-        direction: rawSplit.direction as "vertical" | "horizontal",
-        splitRatio,
-        gutterPt,
-      };
+      const footerPt =
+        typeof rawBands.footerPt === "number" && Number.isFinite(rawBands.footerPt)
+          ? Math.max(0, rawBands.footerPt)
+          : 0;
+      if (headerPt > 0 || footerPt > 0) {
+        exclusionBands = { headerPt, footerPt };
+      }
     }
 
     clean[pageIndex] = {
@@ -109,6 +158,7 @@ function sanitizePageCrops(rawCrops: unknown): Record<number, PageCropState> {
       presetAnchor: typeof crop.presetAnchor === "string" ? (crop.presetAnchor as any) : undefined,
       marginsPt,
       splitConfig,
+      exclusionBands,
       updatedAt: typeof crop.updatedAt === "number" && Number.isFinite(crop.updatedAt) ? crop.updatedAt : Date.now(),
     };
   }

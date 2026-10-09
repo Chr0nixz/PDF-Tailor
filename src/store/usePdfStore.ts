@@ -24,6 +24,7 @@ import type {
   CropMode,
   CropRect,
   DocumentLoadState,
+  ExclusionBands,
   PageCropState,
   PageMetadata,
   PdfTailorSession,
@@ -149,6 +150,11 @@ interface PdfStoreState {
   setPageSplitConfig: (pageIndex: number, config: ColumnSplitConfig | undefined) => void;
   applySplitConfigToPages: (
     config: ColumnSplitConfig | undefined,
+    targetPageIndices: number[],
+  ) => void;
+  setPageExclusionBands: (pageIndex: number, bands: ExclusionBands | undefined) => void;
+  applyExclusionBandsToPages: (
+    bands: ExclusionBands | undefined,
     targetPageIndices: number[],
   ) => void;
   applyCropToPages: (
@@ -362,6 +368,7 @@ function buildTemplateFromPageCrop(
       left: page.widthPt > 0 ? pageCrop.marginsPt.left / page.widthPt : 0,
     },
     splitConfig: pageCrop.splitConfig ? { ...pageCrop.splitConfig } : undefined,
+    exclusionBands: pageCrop.exclusionBands ? { ...pageCrop.exclusionBands } : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -401,6 +408,7 @@ function applyTemplateToPage(
     presetAnchor: template.mode === "preset" ? template.presetAnchor : undefined,
     marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
     splitConfig: template.splitConfig ? { ...template.splitConfig } : undefined,
+    exclusionBands: template.exclusionBands ? { ...template.exclusionBands } : undefined,
     updatedAt: Date.now(),
   };
 }
@@ -829,6 +837,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
           presetAnchor: source.presetAnchor,
           marginsPt: nextMargins,
           splitConfig: source.splitConfig,
+          exclusionBands: source.exclusionBands ? { ...source.exclusionBands } : undefined,
           updatedAt: Date.now(),
         };
       }
@@ -883,6 +892,51 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
         past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
         future: [],
         lastAction: i18n.t("history.action.splitConfig") as string,
+      };
+    }),
+  setPageExclusionBands: (pageIndex, bands) =>
+    set((state) => {
+      const page = resolvePageByStoreId(pageIndex, state.pages);
+      const targetSourceId = page?.sourceId ?? pageIndex;
+      const current = state.pageCrops[targetSourceId] ?? createEmptyPageCrop(targetSourceId);
+
+      const nextPageCrops = {
+        ...state.pageCrops,
+        [targetSourceId]: {
+          ...current,
+          exclusionBands: bands ? { ...bands } : undefined,
+          updatedAt: Date.now(),
+        },
+      };
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+        lastAction: i18n.t("history.action.exclusionBands") as string,
+      };
+    }),
+  applyExclusionBandsToPages: (bands, targetPageIndices) =>
+    set((state) => {
+      const nextPageCrops = { ...state.pageCrops };
+      for (const pageIndex of targetPageIndices) {
+        const page = resolvePageByStoreId(pageIndex, state.pages);
+        if (!page) continue;
+        const targetSourceId = page.sourceId;
+        const current = state.pageCrops[targetSourceId] ?? createEmptyPageCrop(targetSourceId);
+
+        nextPageCrops[targetSourceId] = {
+          ...current,
+          exclusionBands: bands ? { ...bands } : undefined,
+          updatedAt: Date.now(),
+        };
+      }
+
+      return {
+        pageCrops: nextPageCrops,
+        past: [...state.past, cloneHistorySnapshot(state.pageCrops)].slice(-HISTORY_LIMIT),
+        future: [],
+        lastAction: i18n.t("history.action.exclusionBands") as string,
       };
     }),
   pushHistoryCheckpoint: () =>
@@ -1089,6 +1143,7 @@ export const usePdfStore = create<PdfStoreState>((set, get) => ({
           presetAnchor: clipboard.presetAnchor,
           marginsPt: cropRectToMargins(nextCropRect, page.widthPt, page.heightPt),
           splitConfig: clipboard.splitConfig ? { ...clipboard.splitConfig } : undefined,
+          exclusionBands: clipboard.exclusionBands ? { ...clipboard.exclusionBands } : undefined,
           updatedAt: Date.now(),
         };
       }

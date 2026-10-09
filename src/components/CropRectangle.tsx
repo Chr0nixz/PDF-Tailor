@@ -1,12 +1,13 @@
 import { memo, type PointerEvent as ReactPointerEvent } from "react";
 import { pdfRectToCanvasRect, pdfToCanvasPoint, type ViewportMetrics } from "@/utils/coordinates";
-import type { ColumnSplitConfig, CropHandle, CropRect, SnapGuide } from "@/types";
+import type { ColumnSplitConfig, CropHandle, CropRect, ExclusionBands, SnapGuide } from "@/types";
 
 interface CropRectangleProps {
   cropRect: CropRect;
   viewport: ViewportMetrics;
   snapGuides: SnapGuide[];
   splitConfig?: ColumnSplitConfig;
+  exclusionBands?: ExclusionBands;
   onMoveStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onResizeStart: (handle: CropHandle, event: ReactPointerEvent<HTMLDivElement>) => void;
 }
@@ -31,6 +32,7 @@ export const CropRectangle = memo(function CropRectangle({
   viewport,
   snapGuides,
   splitConfig,
+  exclusionBands,
   onMoveStart,
   onResizeStart,
 }: CropRectangleProps) {
@@ -101,6 +103,85 @@ export const CropRectangle = memo(function CropRectangle({
             <div className="absolute left-2 top-1 flex items-center justify-center rounded-full bg-pine px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
               ②
             </div>
+          </div>
+        )}
+
+        {splitConfig && splitConfig.direction === "grid" && (() => {
+          const rows = Math.max(1, Math.min(4, splitConfig.rows ?? 2));
+          const cols = Math.max(1, Math.min(4, splitConfig.columns ?? 2));
+          const order = splitConfig.readingOrder ?? "ltr-ttb";
+          const cellW = canvasRect.width / cols;
+          const cellH = canvasRect.height / rows;
+
+          const badges: { num: number; x: number; y: number }[] = [];
+          let currentNum = 1;
+
+          if (order === "ttb-ltr") {
+            for (let c = 0; c < cols; c++) {
+              for (let r = 0; r < rows; r++) {
+                badges.push({ num: currentNum++, x: c * cellW + 6, y: r * cellH + 6 });
+              }
+            }
+          } else {
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                badges.push({ num: currentNum++, x: c * cellW + 6, y: r * cellH + 6 });
+              }
+            }
+          }
+
+          return (
+            <div className="pointer-events-none absolute inset-0">
+              {Array.from({ length: cols - 1 }).map((_, idx) => (
+                <div
+                  key={`v-grid-${idx}`}
+                  className="absolute bottom-0 top-0 border-l border-dashed border-pine"
+                  style={{ left: `${(idx + 1) * cellW}px` }}
+                />
+              ))}
+              {Array.from({ length: rows - 1 }).map((_, idx) => (
+                <div
+                  key={`h-grid-${idx}`}
+                  className="absolute left-0 right-0 border-t border-dashed border-pine"
+                  style={{ top: `${(idx + 1) * cellH}px` }}
+                />
+              ))}
+              {badges.map((b) => (
+                <div
+                  key={b.num}
+                  className="absolute flex items-center justify-center rounded-full bg-pine px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm"
+                  style={{ left: `${b.x}px`, top: `${b.y}px` }}
+                >
+                  {b.num}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {exclusionBands && exclusionBands.headerPt > 0 && (
+          <div
+            className="pointer-events-none absolute left-0 right-0 top-0 border-b border-dashed border-amber-500/70 bg-amber-500/15"
+            style={{
+              height: `${Math.min(canvasRect.height - 4, exclusionBands.headerPt * viewport.scale)}px`,
+            }}
+          >
+            <span className="absolute left-2 top-0.5 rounded bg-amber-500/80 px-1 py-0.5 text-[9px] font-medium text-white shadow-xs">
+              Header
+            </span>
+          </div>
+        )}
+
+        {exclusionBands && exclusionBands.footerPt > 0 && (
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 border-t border-dashed border-amber-500/70 bg-amber-500/15"
+            style={{
+              height: `${Math.min(canvasRect.height - 4, exclusionBands.footerPt * viewport.scale)}px`,
+            }}
+          >
+            <span className="absolute bottom-0.5 left-2 rounded bg-amber-500/80 px-1 py-0.5 text-[9px] font-medium text-white shadow-xs">
+              Footer
+            </span>
           </div>
         )}
 

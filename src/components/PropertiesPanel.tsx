@@ -15,6 +15,7 @@ import {
   toDisplayUnit,
 } from "@/utils/unitConversion";
 import { detectAutoCrop } from "@/utils/autoCrop";
+import { detectTextLayerAutoCrop } from "@/utils/textAutoCrop";
 import type { CropMode, PageMargins, PresetAnchor } from "@/types";
 import type { PDFDocumentProxy } from "@/lib/pdfjs";
 
@@ -76,6 +77,8 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
   const setMirrorMarginsEnabled = usePdfStore((state) => state.setMirrorMarginsEnabled);
   const setPageSplitConfig = usePdfStore((state) => state.setPageSplitConfig);
   const applySplitConfigToPages = usePdfStore((state) => state.applySplitConfigToPages);
+  const setPageExclusionBands = usePdfStore((state) => state.setPageExclusionBands);
+  const applyExclusionBandsToPages = usePdfStore((state) => state.applyExclusionBandsToPages);
   const addToast = useToastStore((state) => state.addToast);
 
   const currentCrop = selectCurrentPageCrop(
@@ -101,6 +104,9 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
   const currentSplitConfig = currentCrop?.splitConfig ?? pageCrops[sourceId]?.splitConfig;
   const splitDirection = currentSplitConfig?.direction ?? "none";
   const splitRatio = currentSplitConfig?.splitRatio ?? 0.5;
+  const currentExclusionBands = currentCrop?.exclusionBands ?? pageCrops[sourceId]?.exclusionBands;
+  const headerPt = currentExclusionBands?.headerPt ?? 0;
+  const footerPt = currentExclusionBands?.footerPt ?? 0;
   const selectedTargets = selectedPageIndices.length > 0 ? selectedPageIndices : [sourceId];
   const selectedTemplate =
     templates.find((template) => template.id === selectedTemplateId) ?? null;
@@ -222,6 +228,56 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
     addToast({ type: "success", message: t("autoCrop.applied", { count: applied }) });
   };
 
+  const handleTextAutoCrop = async (withMargin: boolean) => {
+    if (!documentProxy || pages.length === 0) return;
+    const targets = selectedPageIndices.length > 0 ? selectedPageIndices : [sourceId];
+    pushHistoryCheckpoint();
+    const marginPt = withMargin ? 12 : 0;
+    const results = await Promise.allSettled(
+      targets.map((sid) => detectTextLayerAutoCrop(documentProxy, sid, marginPt)),
+    );
+    let applied = 0;
+    results.forEach((result, idx) => {
+      if (result.status === "fulfilled") {
+        const { cropRect, confidence } = result.value;
+        if (cropRect && confidence > 0) {
+          setPageCropRect(targets[idx], { ...cropRect, pageIndex: targets[idx] });
+          applied++;
+        } else {
+          addToast({
+            type: "warning",
+            message: t("autoCrop.noTextFound", {
+              page: pages.findIndex((p) => p.sourceId === targets[idx]) + 1,
+            }),
+          });
+        }
+      }
+    });
+    if (applied > 0) {
+      addToast({ type: "success", message: t("autoCrop.applied", { count: applied }) });
+    }
+  };
+
+  const handleExclusionSet = (type: "header" | "footer", valStr: string) => {
+    const num = Number.parseFloat(valStr);
+    const valPt = Number.isFinite(num) ? fromDisplayUnit(Math.max(0, num), displayUnit) : 0;
+    const nextHeader = type === "header" ? valPt : headerPt;
+    const nextFooter = type === "footer" ? valPt : footerPt;
+    const bands =
+      nextHeader > 0 || nextFooter > 0
+        ? { headerPt: nextHeader, footerPt: nextFooter }
+        : undefined;
+    setPageExclusionBands(sourceId, bands);
+  };
+
+  const handleExclusionClear = () => {
+    setPageExclusionBands(sourceId, undefined);
+  };
+
+  const handleApplyExclusionToTargets = (targets: number[]) => {
+    applyExclusionBandsToPages(currentExclusionBands, targets);
+  };
+
   const handleModeChange = (nextMode: CropMode) => {
     if (nextMode === "preset") {
       applyPreset(presetSizeId, presetAnchor);
@@ -327,12 +383,14 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
               <span className="rounded-full bg-pine/15 px-2 py-0.5 text-[10px] font-semibold text-pine dark:bg-pine-dark/20 dark:text-pine-dark">
                 {splitDirection === "vertical"
                   ? t("properties.splitVerticalShort")
-                  : t("properties.splitHorizontalShort")}
+                  : splitDirection === "horizontal"
+                  ? t("properties.splitHorizontalShort")
+                  : t("properties.splitGridShort")}
               </span>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {(["none", "vertical", "horizontal"] as const).map((dir) => (
+          <div className="grid grid-cols-4 gap-1.5">
+            {(["none", "vertical", "horizontal", "grid"] as const).map((dir) => (
               <button
                 key={dir}
                 type="button"
@@ -341,10 +399,12 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
                     sourceId,
                     dir === "none"
                       ? undefined
+                      : dir === "grid"
+                      ? { direction: "grid", rows: 2, columns: 2, readingOrder: "ltr-ttb", gutterPt: 0 }
                       : { direction: dir, splitRatio: 0.5, gutterPt: 0 },
                   )
                 }
-                className={`rounded-[14px] border py-2 text-xs font-medium transition ${
+                className={`rounded-[12px] border py-2 text-[11px] font-medium transition ${
                   splitDirection === dir
                     ? "border-sky bg-sky/10 text-sky-dark dark:border-sky-dark dark:bg-sky-dark/20 dark:text-sky"
                     : "border-ink/10 bg-white/80 text-ink/70 hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light/70"
@@ -357,29 +417,117 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
 
           {splitDirection !== "none" && (
             <div className="mt-4 space-y-3 border-t border-ink/8 pt-3 dark:border-white/10">
-              <div>
-                <div className="mb-1 flex items-center justify-between text-xs text-ink/60 dark:text-ink-light/60">
-                  <span>{t("properties.splitRatio")}</span>
-                  <span className="font-semibold text-ink dark:text-ink-light">
-                    {Math.round(splitRatio * 100)}% / {Math.round((1 - splitRatio) * 100)}%
-                  </span>
+              {splitDirection === "grid" ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-ink/50 dark:text-ink-light/50">
+                        {t("properties.gridRows")}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="4"
+                        value={currentSplitConfig?.rows ?? 2}
+                        onChange={(e) =>
+                          setPageSplitConfig(sourceId, {
+                            ...currentSplitConfig,
+                            direction: "grid",
+                            rows: Math.max(1, Math.min(4, Number.parseInt(e.target.value, 10) || 1)),
+                          })
+                        }
+                        className="w-full rounded-[12px] border border-ink/10 bg-white px-2 py-1 text-xs text-ink outline-none dark:border-white/10 dark:bg-panel-dark dark:text-ink-light"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-ink/50 dark:text-ink-light/50">
+                        {t("properties.gridCols")}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="4"
+                        value={currentSplitConfig?.columns ?? 2}
+                        onChange={(e) =>
+                          setPageSplitConfig(sourceId, {
+                            ...currentSplitConfig,
+                            direction: "grid",
+                            columns: Math.max(1, Math.min(4, Number.parseInt(e.target.value, 10) || 1)),
+                          })
+                        }
+                        className="w-full rounded-[12px] border border-ink/10 bg-white px-2 py-1 text-xs text-ink outline-none dark:border-white/10 dark:bg-panel-dark dark:text-ink-light"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-ink/50 dark:text-ink-light/50">
+                      {t("properties.readingOrder")}
+                    </label>
+                    <select
+                      value={currentSplitConfig?.readingOrder ?? "ltr-ttb"}
+                      onChange={(e) =>
+                        setPageSplitConfig(sourceId, {
+                          ...currentSplitConfig,
+                          direction: "grid",
+                          readingOrder: e.target.value as any,
+                        })
+                      }
+                      className="w-full rounded-[12px] border border-ink/10 bg-white px-2 py-1 text-xs text-ink outline-none dark:border-white/10 dark:bg-panel-dark dark:text-ink-light"
+                    >
+                      <option value="ltr-ttb">{t("properties.orderLtrTtb")}</option>
+                      <option value="ttb-ltr">{t("properties.orderTtbLtr")}</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {[
+                      { label: "2×2", r: 2, c: 2 },
+                      { label: "1×2", r: 1, c: 2 },
+                      { label: "2×1", r: 2, c: 1 },
+                      { label: "1×3", r: 1, c: 3 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() =>
+                          setPageSplitConfig(sourceId, {
+                            ...currentSplitConfig,
+                            direction: "grid",
+                            rows: preset.r,
+                            columns: preset.c,
+                          })
+                        }
+                        className="flex-1 rounded-[10px] border border-ink/10 bg-white/70 py-1 text-[11px] font-medium text-ink transition hover:border-ink/20 dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="0.9"
-                  step="0.02"
-                  value={splitRatio}
-                  onChange={(e) =>
-                    setPageSplitConfig(sourceId, {
-                      direction: splitDirection,
-                      splitRatio: Number.parseFloat(e.target.value),
-                      gutterPt: currentSplitConfig?.gutterPt ?? 0,
-                    })
-                  }
-                  className="w-full accent-pine"
-                />
-              </div>
+              ) : (
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs text-ink/60 dark:text-ink-light/60">
+                    <span>{t("properties.splitRatio")}</span>
+                    <span className="font-semibold text-ink dark:text-ink-light">
+                      {Math.round(splitRatio * 100)}% / {Math.round((1 - splitRatio) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="0.9"
+                    step="0.02"
+                    value={splitRatio}
+                    onChange={(e) =>
+                      setPageSplitConfig(sourceId, {
+                        direction: splitDirection,
+                        splitRatio: Number.parseFloat(e.target.value),
+                        gutterPt: currentSplitConfig?.gutterPt ?? 0,
+                      })
+                    }
+                    className="w-full accent-pine"
+                  />
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <button
@@ -439,28 +587,118 @@ export function PropertiesPanel({ documentProxy }: PropertiesPanelProps) {
           <div className="mb-3 text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
             {t("autoCrop.label")}
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleAutoCrop(false)}
-              disabled={!documentProxy || !page}
-              title={t("autoCrop.autoHint")}
-              className="flex-1 rounded-full border border-ink/10 bg-white/80 px-3 py-2.5 text-sm font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {t("autoCrop.auto")}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAutoCrop(true)}
-              disabled={!documentProxy || !page}
-              title={t("autoCrop.autoMarginHint")}
-              className="flex-1 rounded-full border border-ink/10 bg-white/80 px-3 py-2.5 text-sm font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
-            >
-              {t("autoCrop.autoMargin")}
-            </button>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleAutoCrop(false)}
+                disabled={!documentProxy || !page}
+                title={t("autoCrop.autoHint")}
+                className="flex-1 rounded-full border border-ink/10 bg-white/80 px-2.5 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+              >
+                {t("autoCrop.auto")}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAutoCrop(true)}
+                disabled={!documentProxy || !page}
+                title={t("autoCrop.autoMarginHint")}
+                className="flex-1 rounded-full border border-ink/10 bg-white/80 px-2.5 py-2 text-xs font-medium text-ink transition hover:border-ink/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-ink-light dark:hover:border-white/20"
+              >
+                {t("autoCrop.autoMargin")}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleTextAutoCrop(false)}
+                disabled={!documentProxy || !page}
+                title={t("autoCrop.textHint")}
+                className="flex-1 rounded-full border border-sky/30 bg-sky/10 px-2.5 py-2 text-xs font-medium text-sky-dark transition hover:bg-sky/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:text-sky-light"
+              >
+                ⚡ {t("autoCrop.textAuto")}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTextAutoCrop(true)}
+                disabled={!documentProxy || !page}
+                title={t("autoCrop.textHint")}
+                className="flex-1 rounded-full border border-sky/30 bg-sky/10 px-2.5 py-2 text-xs font-medium text-sky-dark transition hover:bg-sky/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 dark:text-sky-light"
+              >
+                ⚡ {t("autoCrop.textAutoMargin")}
+              </button>
+            </div>
           </div>
           <div className="mt-2 text-xs text-ink/50 dark:text-ink-light/50">
             {t("autoCrop.hint")}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-ink/8 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+              {t("properties.exclusionLabel")}
+            </div>
+            {(headerPt > 0 || footerPt > 0) && (
+              <button
+                type="button"
+                onClick={handleExclusionClear}
+                className="text-[11px] font-medium text-ember hover:underline dark:text-ember-light"
+              >
+                {t("properties.clearExclusion")}
+              </button>
+            )}
+          </div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-[11px] text-ink/55 dark:text-ink-light/55">
+                  {t("properties.exclusionHeader")} ({displayUnit})
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formatDisplayValue(headerPt)}
+                  onChange={(e) => handleExclusionSet("header", e.target.value)}
+                  className="w-full rounded-[14px] border border-ink/10 bg-white/80 px-3 py-1.5 text-xs text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] text-ink/55 dark:text-ink-light/55">
+                  {t("properties.exclusionFooter")} ({displayUnit})
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formatDisplayValue(footerPt)}
+                  onChange={(e) => handleExclusionSet("footer", e.target.value)}
+                  className="w-full rounded-[14px] border border-ink/10 bg-white/80 px-3 py-1.5 text-xs text-ink outline-none transition focus:border-sky dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleApplyExclusionToTargets(selectedTargets)}
+                className="flex-1 rounded-full border border-ink/12 bg-white py-1.5 text-xs font-medium text-ink transition hover:border-ink/25 dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
+              >
+                {t("properties.applyExclusionToSelected", { count: selectedTargets.length })}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  handleApplyExclusionToTargets(pages.map((p) => p.sourceId))
+                }
+                className="flex-1 rounded-full border border-ink/12 bg-white py-1.5 text-xs font-medium text-ink transition hover:border-ink/25 dark:border-white/10 dark:bg-white/5 dark:text-ink-light"
+              >
+                {t("properties.applyExclusionToAll")}
+              </button>
+            </div>
+            <div className="text-[11px] text-ink/45 dark:text-ink-light/45">
+              {t("properties.exclusionHint")}
+            </div>
           </div>
         </div>
 

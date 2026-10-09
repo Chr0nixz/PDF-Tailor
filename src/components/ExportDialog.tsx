@@ -4,7 +4,7 @@ import { usePdfStore } from "@/store/usePdfStore";
 import { useToastStore } from "@/store/useToastStore";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { getRotatedCroppedPages, formatRotatedPagesList } from "@/utils/documentWarnings";
-import type { ExportMode, ExportScope } from "@/types";
+import type { ExportMode, ExportScope, PageNumberFormat, PageNumberPosition } from "@/types";
 import type { ExportWorkerResponse } from "@/workers/workerTypes";
 import { useThumbnails } from "@/hooks/useThumbnails";
 import { savePdfDialog, writeFileFromUint8Array, openFileLocation, isTauriAvailable } from "@/utils/fileIO";
@@ -48,6 +48,9 @@ export function ExportDialog() {
   const [progressLabel, setProgressLabel] = useState(t("export.preparingExport"));
   const [exportRate, setExportRate] = useState<string | null>(null);
   const [exportEta, setExportEta] = useState<number | null>(null);
+  const [paginationEnabled, setPaginationEnabled] = useState(false);
+  const [paginationPosition, setPaginationPosition] = useState<PageNumberPosition>("bottom-center");
+  const [paginationFormat, setPaginationFormat] = useState<PageNumberFormat>("page-n-of-total");
   const exportStartTimeRef = useRef<number>(0);
   function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -109,7 +112,13 @@ const workerRef = useRef<Worker | null>(null);
     for (const idx of targetPageIndices) {
       const crop = pageCrops[idx];
       if (crop?.cropRect && crop.splitConfig && crop.splitConfig.direction !== "none") {
-        total += 2;
+        if (crop.splitConfig.direction === "grid") {
+          const r = Math.max(1, Math.min(4, crop.splitConfig.rows ?? 2));
+          const c = Math.max(1, Math.min(4, crop.splitConfig.columns ?? 2));
+          total += r * c;
+        } else {
+          total += 2;
+        }
       } else {
         total += 1;
       }
@@ -308,6 +317,16 @@ const workerRef = useRef<Worker | null>(null);
         pageCrops,
         exportMode,
         exportPageIndices: targetPageIndices,
+        paginationConfig: paginationEnabled
+          ? {
+              enabled: true,
+              position: paginationPosition,
+              format: paginationFormat,
+              fontSizePt: 9,
+              marginPt: 18,
+              startNumber: 1,
+            }
+          : undefined,
       },
       generation,
     });
@@ -416,6 +435,67 @@ const workerRef = useRef<Worker | null>(null);
                   </div>
                 </button>
               </div>
+            </div>
+
+            <div className="rounded-[20px] border border-ink/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-ink/45 dark:text-ink-light/45">
+                    {t("export.paginationLabel")}
+                  </div>
+                  <div className="mt-0.5 text-xs text-ink/60 dark:text-ink-light/55">
+                    {t("export.paginationDesc")}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaginationEnabled(!paginationEnabled)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    paginationEnabled
+                      ? "bg-pine text-white"
+                      : "border border-ink/15 bg-white/80 text-ink dark:border-white/15 dark:bg-white/5 dark:text-ink-light"
+                  }`}
+                >
+                  {paginationEnabled ? t("export.paginationOn") : t("export.paginationOff")}
+                </button>
+              </div>
+
+              {paginationEnabled && (
+                <div className="mt-3 space-y-2 border-t border-ink/8 pt-3 dark:border-white/10">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-ink/50 dark:text-ink-light/50">
+                        {t("export.paginationPosition")}
+                      </label>
+                      <select
+                        value={paginationPosition}
+                        onChange={(e) => setPaginationPosition(e.target.value as PageNumberPosition)}
+                        className="w-full rounded-[12px] border border-ink/10 bg-white px-2 py-1.5 text-xs text-ink outline-none dark:border-white/10 dark:bg-panel-dark dark:text-ink-light"
+                      >
+                        <option value="bottom-center">{t("export.posBottomCenter")}</option>
+                        <option value="bottom-right">{t("export.posBottomRight")}</option>
+                        <option value="bottom-left">{t("export.posBottomLeft")}</option>
+                        <option value="top-right">{t("export.posTopRight")}</option>
+                        <option value="top-center">{t("export.posTopCenter")}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-ink/50 dark:text-ink-light/50">
+                        {t("export.paginationFormat")}
+                      </label>
+                      <select
+                        value={paginationFormat}
+                        onChange={(e) => setPaginationFormat(e.target.value as PageNumberFormat)}
+                        className="w-full rounded-[12px] border border-ink/10 bg-white px-2 py-1.5 text-xs text-ink outline-none dark:border-white/10 dark:bg-panel-dark dark:text-ink-light"
+                      >
+                        <option value="page-n-of-total">Page 1 of {estimatedOutputPages}</option>
+                        <option value="slash-total">1 / {estimatedOutputPages}</option>
+                        <option value="number-only">1</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {exportInProgress && (

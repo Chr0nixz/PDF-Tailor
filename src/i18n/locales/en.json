@@ -56,7 +56,8 @@
       "nudge": "Crop nudged",
       "loadSession": "Project loaded",
       "splitConfig": "Column split configured",
-      "batchSplit": "Batch column split applied"
+      "batchSplit": "Batch column split applied",
+      "exclusionBands": "Exclusion bands configured"
     },
     "undone": "Undone: {{action}}",
     "redone": "Redone: {{action}}"
@@ -107,7 +108,18 @@
     "summaryEstSize": "Est. size",
     "speed": "Speed: {{rate}} pages/s",
     "eta": "ETA: {{seconds}}s remaining",
-    "openLocation": "Open location"
+    "openLocation": "Open location",
+    "paginationLabel": "Sequential Page Numbering",
+    "paginationDesc": "Automatically overlay standardized running page numbers on exported pages",
+    "paginationOn": "Enabled",
+    "paginationOff": "Disabled",
+    "paginationPosition": "Position",
+    "paginationFormat": "Format",
+    "posBottomCenter": "Bottom Center",
+    "posBottomRight": "Bottom Right",
+    "posBottomLeft": "Bottom Left",
+    "posTopRight": "Top Right",
+    "posTopCenter": "Top Center"
   },
   "printPreview": {
     "title": "PRINT PREVIEW",
@@ -176,19 +188,37 @@
     "split_none": "Single Page",
     "split_vertical": "Left / Right",
     "split_horizontal": "Top / Bottom",
+    "split_grid": "N-Grid Split",
+    "splitGridShort": "N-Grid",
+    "gridRows": "Rows",
+    "gridCols": "Columns",
+    "readingOrder": "Reading Order",
+    "orderLtrTtb": "Left to right, top to bottom",
+    "orderTtbLtr": "Top to bottom, left to right",
     "splitRatio": "Split Ratio",
     "applySplitToSelected": "Apply Split to Selected ({{count}})",
-    "applySplitToAll": "Apply Split to All"
+    "applySplitToAll": "Apply Split to All",
+    "exclusionLabel": "Header & Footer Exclusion",
+    "exclusionHeader": "Header Height",
+    "exclusionFooter": "Footer Height",
+    "exclusionHint": "Strip running headers or bottom footers across columns to prevent overlap in multi-column layouts.",
+    "applyExclusionToSelected": "Apply Exclusion to Selected ({{count}})",
+    "applyExclusionToAll": "Apply Exclusion to All",
+    "clearExclusion": "Clear Exclusion Bands"
   },
   "autoCrop": {
-    "label": "AUTO DETECT",
-    "auto": "Auto Crop",
-    "autoMargin": "Auto Crop + Margin",
-    "hint": "Detects content boundaries on scanned documents.",
-    "autoHint": "Auto-detect content and crop",
+    "label": "AUTO DETECT & SNAP",
+    "auto": "Image Auto-Crop",
+    "autoMargin": "Image + Margin",
+    "textAuto": "Vector Text Snap",
+    "textAutoMargin": "Text + Margin",
+    "hint": "Image mode detects scanned edges; Vector mode snaps to pure text content in research papers instantly.",
+    "autoHint": "Auto-detect content edges",
     "autoMarginHint": "Auto-detect with 12pt margin",
+    "textHint": "Snap directly to vector text content in research papers.",
     "applied": "Crop applied to {{count}} page(s)",
-    "lowConfidence": "Low confidence on page {{page}} — please review"
+    "lowConfidence": "Low confidence on page {{page}} — please review",
+    "noTextFound": "No vector text found on page {{page}}. Try image auto-crop instead."
   },
   "cropMode": {
     "free": "Free",

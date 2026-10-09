@@ -52,6 +52,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
     pages,
   )?.cropRect;
   const currentSplitConfig = page ? pageCrops[page.sourceId]?.splitConfig : undefined;
+  const currentExclusionBands = page ? pageCrops[page.sourceId]?.exclusionBands : undefined;
   const cropLayerRef = useRef<HTMLDivElement | null>(null);
   const viewportFrameRef = useRef<HTMLDivElement | null>(null);
   const { cropRect, snapGuides, startCreate, startMove, startResize } = useCropSelection({
@@ -187,6 +188,7 @@ export function Workspace({ documentProxy }: WorkspaceProps) {
                         viewport={viewport}
                         snapGuides={snapGuides}
                         splitConfig={currentSplitConfig}
+                        exclusionBands={currentExclusionBands}
                         onMoveStart={startMove}
                         onResizeStart={startResize}
                       />

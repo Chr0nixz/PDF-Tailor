@@ -28,7 +28,13 @@ It focuses on one job: open a PDF, visually define crop regions, batch-apply the
 
 ## Current Status
 
-**v1.3** is the current stable release.
+**v1.4** is the current active release.
+
+### What's New in v1.4:
+- **Vector Text-Layer Auto-Snap**: Instant milliseconds bounding box extraction from PDF glyph transform vectors, achieving 100% tight alignment without rasterization overhead or character clipping.
+- **Header & Footer Stripping (Exclusion Bands)**: Define customizable top header and bottom footer exclusion heights to strip running headers and footers across single-page and multi-column exports.
+- **N-Grid Multi-Segment Page Splitting**: Split lecture handouts (e.g. 2×2, 2×3 slides per page) and multi-column newspaper layouts into sequential single-reading pages with customizable rows, columns, and reading order (left-to-right / top-to-bottom).
+- **Sequential Re-pagination & Bates Numbering**: Automatically overlay standardized running page numbers on exported documents, with configurable positions, format templates (`Page n of total`, `n / total`, `n`), and margin offsets.
 
 ### What's New in v1.3:
 - **Two-Column / Multi-Column Page Splitting**: Split two-column papers (arXiv, IEEE, ACM) or double-page scanned spreads into sequential single-column pages, with adjustable split ratio and gutter spacing.
