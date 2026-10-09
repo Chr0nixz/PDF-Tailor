@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "shortDescription": "Precision PDF Cropping and Layout Tool",
+    "longDescription": "A modern, local-first PDF layout and precision cropping tool supporting multi-column split, smart vector auto-crop, sequential re-pagination, and offline privacy.",
+    "category": "Office",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
