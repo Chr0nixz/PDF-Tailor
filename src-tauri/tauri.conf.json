@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "PDF-Tailor",
   "version": "1.4.0",
-  "identifier": "com.pdf-tailor.app",
+  "identifier": "com.pdftailor.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
